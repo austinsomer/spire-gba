@@ -1,7 +1,18 @@
 #include "game.h"
+#include "cards.h"
 s8 map_pending_encounter;
-void run_new(void){ run.hp=run.maxhp=80; run.gold=99; run.floor=0; run.ndeck=0; }
-void map_screen(void){ txt_clear(); ui_clear(); txt_put(2,2,"MAP STUB",CLR_GREEN); for(;;){vsync();key_poll(); if(key_hit(KEY_B)){gstate=ST_TITLE;return;}} }
+void map_screen(void){
+    for(;;){
+        txt_clear(); ui_clear();
+        txt_put(2,2,"MAP STUB",CLR_GREEN);
+        txt_put(2,4,"SELECT: DECK  B: TITLE",CLR_GRAY);
+        for(;;){
+            vsync(); key_poll();
+            if(key_hit(KEY_SELECT)){ deck_browse("DECK",0); break; }
+            if(key_hit(KEY_B)){ gstate=ST_TITLE; return; }
+        }
+    }
+}
 void combat_screen(int e){ (void)e; gstate=ST_MAP; }
 void reward_screen(int e){ (void)e; gstate=ST_MAP; }
 void rest_screen(void){ gstate=ST_MAP; }

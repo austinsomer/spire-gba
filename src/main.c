@@ -1,4 +1,5 @@
 #include "game.h"
+#include "cards.h"
 
 Run run;
 GState gstate;
