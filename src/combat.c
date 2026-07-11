@@ -572,7 +572,19 @@ void combat_screen(int encounter)
     pl.barricade = pl.demonform = 0;
     combat_turn = 0;
     combat_won = 0;
+
+    /* relics: combat start */
+    if (run_has_relic(RLC_VAJRA)) pl.str += 1;
+    if (run_has_relic(RLC_BRONZESCALES)) pl.thorns += 3;
+    if (run_has_relic(RLC_BLOODVIAL)) {
+        run.hp += 2; if (run.hp > run.maxhp) run.hp = run.maxhp;
+    }
+
     start_player_turn();
+    /* relics: first turn */
+    if (run_has_relic(RLC_ANCHOR)) pl.block += 10;
+    if (run_has_relic(RLC_LANTERN)) pl.energy += 1;
+    if (run_has_relic(RLC_BAGPREP)) pile_draw(2);
 
     int sel = 0;
 

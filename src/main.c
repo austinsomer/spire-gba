@@ -57,7 +57,7 @@ int main(void)
         case ST_TITLE:    title_screen();    break;
         case ST_MAP:      map_screen();      break;
         case ST_COMBAT:   combat_screen(map_pending_encounter); break;
-        case ST_REWARD:   reward_screen(0);  break;
+        case ST_REWARD:   reward_screen(reward_elite); break;
         case ST_REST:     rest_screen();     break;
         case ST_SHOP:     shop_screen();     break;
         case ST_EVENT:    event_screen();    break;

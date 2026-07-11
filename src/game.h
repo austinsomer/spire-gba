@@ -88,6 +88,16 @@ extern GState gstate;
 void run_new(void);
 int  run_has_relic(u8 r);
 void deck_add(u8 card_id);
+void deck_remove(int idx);
+
+/* relics */
+enum { RLC_BURNINGBLOOD, RLC_VAJRA, RLC_BRONZESCALES, RLC_ANCHOR,
+       RLC_LANTERN, RLC_STRAWBERRY, RLC_BAGPREP, RLC_BLOODVIAL, N_RELICS };
+extern const char relic_names[N_RELICS][14];
+void relic_add(u8 r);
+u8   relic_random(void);       /* unowned relic, or 0xFF if all owned */
+
+extern int reward_elite;       /* set before ST_REWARD */
 
 /* screens — each runs its own loop, returns/advances gstate */
 void title_screen(void);

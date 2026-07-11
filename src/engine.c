@@ -134,12 +134,35 @@ void vsync(void)
 {
     __asm__ volatile("swi 0x05" ::: "r0", "r1", "r2", "r3");
     frame_count++;
+#ifdef AUTOPLAY
+    /* heartbeat: spinner top-right proves CPU alive + in vsync loop */
+    {
+        extern GState gstate;
+        static const char spin[4] = {'-', '/', '|', '+'};
+        txt_putc(29, 0, spin[(frame_count >> 4) & 3], CLR_PURPLE);
+        txt_putc(28, 0, '0' + (int)gstate, CLR_PURPLE);
+    }
+#endif
 }
 
 void key_poll(void)
 {
     keys_prev = keys_cur;
     keys_cur = ~REG_KEYINPUT & KEY_ANY;
+#ifdef AUTOPLAY
+    /* monkey input: press random key every 8 frames */
+    if ((frame_count & 7) == 0) {
+        u32 r = frame_count * 2654435761u; r ^= r >> 13;
+        switch (r % 10) {
+        case 0: case 1: case 2: case 3: keys_cur |= KEY_A; break;
+        case 4: case 5: keys_cur |= KEY_DOWN; break;
+        case 6: keys_cur |= KEY_UP; break;
+        case 7: keys_cur |= KEY_RIGHT; break;
+        case 8: keys_cur |= KEY_START; break;
+        default: break; /* rest */
+        }
+    }
+#endif
 }
 
 u16 key_hit(u16 mask)  { return (keys_cur & ~keys_prev) & mask; }

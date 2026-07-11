@@ -21,6 +21,10 @@ all: $(ROM)
 $(BUILD)/%.o: src/%.c src/gba.h | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+# mem.c: stop gcc turning the mem* loop bodies into calls to themselves
+$(BUILD)/mem.o: src/mem.c src/gba.h | $(BUILD)
+	$(CC) $(CFLAGS) -fno-builtin -fno-tree-loop-distribute-patterns -c $< -o $@
+
 $(BUILD)/crt0.o: src/crt0.s | $(BUILD)
 	$(CC) $(ARCH) -c $< -o $@
 

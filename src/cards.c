@@ -75,6 +75,7 @@ void run_new(void)
     for (int i = 0; i < 5; i++) deck_add(C_STRIKE);
     for (int i = 0; i < 4; i++) deck_add(C_DEFEND);
     deck_add(C_BASH);
+    relic_add(RLC_BURNINGBLOOD);
     run.act_boss = rng_range(3);
     map_generate();
 }
