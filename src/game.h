@@ -47,6 +47,12 @@ int  rng_range(int n);       /* 0..n-1 */
 void rng_seed(u32 s);
 extern u32 frame_count;
 
+/* obj sprites (32x32, ids in sprites.h enum) */
+void sprites_load(void);
+void obj_show(int oam_i, int sprite, int x, int y);
+void obj_hide(int oam_i);
+void obj_hide_all(void);
+
 void sfx_init(void);
 void sfx_blip(void);         /* menu move */
 void sfx_ok(void);           /* confirm */

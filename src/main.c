@@ -49,6 +49,7 @@ void title_screen(void)
 int main(void)
 {
     video_init();
+    sprites_load();
     sfx_init();
     gstate = ST_TITLE;
 

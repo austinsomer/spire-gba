@@ -18,11 +18,13 @@ LDFLAGS := $(ARCH) -nostartfiles -nostdlib -T src/gba.ld -Wl,--gc-sections -lgcc
 
 all: $(ROM)
 
-$(BUILD)/%.o: src/%.c src/gba.h | $(BUILD)
+HDRS := $(wildcard src/*.h)
+
+$(BUILD)/%.o: src/%.c $(HDRS) | $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # mem.c: stop gcc turning the mem* loop bodies into calls to themselves
-$(BUILD)/mem.o: src/mem.c src/gba.h | $(BUILD)
+$(BUILD)/mem.o: src/mem.c $(HDRS) | $(BUILD)
 	$(CC) $(CFLAGS) -fno-builtin -fno-tree-loop-distribute-patterns -c $< -o $@
 
 $(BUILD)/crt0.o: src/crt0.s | $(BUILD)

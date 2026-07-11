@@ -1,4 +1,5 @@
 #include "cards.h"
+#include "sprites.h"
 
 /* ---------- encounters ---------- */
 /* ids match game.h usage: normals, elites, bosses */
@@ -434,63 +435,75 @@ static void intent_text(Enemy *e, char *buf)
     buf[p] = 0;
 }
 
+/* species -> sprite id (sprites.h enum order) */
+static const u8 species_spr[N_ENEMIES] = {
+    [EN_CULTIST] = SPR_CULTIST, [EN_JAWWORM] = SPR_JAWWORM,
+    [EN_LOUSE_R] = SPR_LOUSE_R, [EN_LOUSE_G] = SPR_LOUSE_G,
+    [EN_ACID_M] = SPR_ACIDSLIME, [EN_ACID_L] = SPR_ACIDSLIME,
+    [EN_SPIKE_M] = SPR_SPIKESLIME, [EN_SPIKE_L] = SPR_SPIKESLIME,
+    [EN_LOOTER] = SPR_LOOTER, [EN_FUNGI] = SPR_FUNGI,
+    [EN_SLAVER] = SPR_SLAVER, [EN_NOB] = SPR_NOB,
+    [EN_LAGAVULIN] = SPR_LAGAVULIN, [EN_SENTRY] = SPR_SENTRY,
+    [EN_SLIMEBOSS] = SPR_SLIMEBOSS, [EN_GUARDIAN] = SPR_GUARDIAN,
+    [EN_HEXAGHOST] = SPR_HEXAGHOST,
+};
+
 static void draw_enemies(int cursor, int targeting)
 {
     char b[12];
     for (int i = 0; i < nen; i++) {
         Enemy *e = &en[i];
         int x = 1 + i * 10;
-        if (!e->alive) continue;
+        if (!e->alive) { obj_hide(i); continue; }
         int hi = (targeting && i == cursor);
-        txt_put(x, 2, species[e->id].name, hi ? CLR_YELLOW : CLR_WHITE);
-        ui_bar(x, 3, 8, e->hp, e->maxhp, CLR_RED);
-        int xx = txt_int_at(x, 4, e->hp, CLR_WHITE);
-        txt_putc(xx, 4, '/', CLR_GRAY);
-        txt_int(xx + 1, 4, e->maxhp, CLR_GRAY);
+        txt_put(x, 1, species[e->id].name, hi ? CLR_YELLOW : CLR_WHITE);
+        /* sprite: center of 80px column, below name row */
+        obj_show(i, species_spr[e->id], x * 8 + 24, 16);
+        if (hi) txt_putc(x + 4, 6, 'v', CLR_YELLOW);
+        ui_bar(x, 6, 8, e->hp, e->maxhp, CLR_RED);
+        int xx = txt_int_at(x, 7, e->hp, CLR_WHITE);
+        txt_putc(xx, 7, '/', CLR_GRAY);
+        txt_int(xx + 1, 7, e->maxhp, CLR_GRAY);
         intent_text(e, b);
-        txt_put(x, 5, b, e->mv.kind == MV_ATK ? CLR_ORANGE : CLR_CYAN);
+        txt_put(x, 8, b, e->mv.kind == MV_ATK ? CLR_ORANGE : CLR_CYAN);
         /* status line */
         int sx = x;
-        if (e->block) { txt_putc(sx, 6, 'B', CLR_BLUE); sx = txt_int_at(sx+1, 6, e->block, CLR_BLUE) + 1; }
-        if (e->str)   { txt_putc(sx, 6, 'S', CLR_RED);  sx = txt_int_at(sx+1, 6, e->str, CLR_RED) + 1; }
-        if (e->weak)  { txt_putc(sx, 6, 'W', CLR_GREEN);sx = txt_int_at(sx+1, 6, e->weak, CLR_GREEN) + 1; }
-        if (e->vuln)  { txt_putc(sx, 6, 'V', CLR_PURPLE);sx = txt_int_at(sx+1, 6, e->vuln, CLR_PURPLE) + 1; }
-        if (hi) txt_putc(x + 4, 1, 'v', CLR_YELLOW);
+        if (e->block) { txt_putc(sx, 9, 'B', CLR_BLUE); sx = txt_int_at(sx+1, 9, e->block, CLR_BLUE) + 1; }
+        if (e->str)   { txt_putc(sx, 9, 'S', CLR_RED);  sx = txt_int_at(sx+1, 9, e->str, CLR_RED) + 1; }
+        if (e->weak)  { txt_putc(sx, 9, 'W', CLR_GREEN);sx = txt_int_at(sx+1, 9, e->weak, CLR_GREEN) + 1; }
+        if (e->vuln)  { txt_putc(sx, 9, 'V', CLR_PURPLE);sx = txt_int_at(sx+1, 9, e->vuln, CLR_PURPLE) + 1; }
     }
+    for (int i = nen; i < MAX_ENEMY; i++) obj_hide(i);
 }
 
 static void draw_player(void)
 {
-    int xx = txt_int_at(1, 8, run.hp, CLR_WHITE);
-    txt_putc(xx, 8, '/', CLR_GRAY);
-    xx = txt_int_at(xx + 1, 8, run.maxhp, CLR_GRAY);
-    ui_bar(1, 9, 10, run.hp, run.maxhp, CLR_GREEN);
-    xx = 13;
-    if (pl.block) { txt_put(xx, 8, "BLK", CLR_BLUE); xx = txt_int_at(xx+4, 8, pl.block, CLR_BLUE)+1; }
-    if (pl.str)   { txt_put(xx, 8, "STR", CLR_RED);  xx = txt_int_at(xx+4, 8, pl.str, CLR_RED)+1; }
-    xx = 13;
-    if (pl.weak) { txt_put(xx, 9, "WK", CLR_GREEN); xx = txt_int_at(xx+3, 9, pl.weak, CLR_GREEN)+1; }
-    if (pl.vuln) { txt_put(xx, 9, "VU", CLR_PURPLE); xx = txt_int_at(xx+3, 9, pl.vuln, CLR_PURPLE)+1; }
-    if (pl.thorns) { txt_put(xx, 9, "TH", CLR_ORANGE); xx = txt_int_at(xx+3, 9, pl.thorns, CLR_ORANGE)+1; }
-    /* energy */
-    ui_tile(25, 8, T_ENERGY, CLR_YELLOW);
-    xx = txt_int_at(27, 8, pl.energy, CLR_YELLOW);
+    ui_tile(0, 10, T_HEART, CLR_RED);
+    int xx = txt_int_at(2, 10, run.hp, CLR_WHITE);
+    txt_putc(xx, 10, '/', CLR_GRAY);
+    xx = txt_int_at(xx + 1, 10, run.maxhp, CLR_GRAY);
+    ui_bar(xx + 1, 10, 6, run.hp, run.maxhp, CLR_GREEN);
+    xx += 8;
+    if (pl.block) { ui_tile(xx, 10, T_SHIELD, CLR_BLUE); xx = txt_int_at(xx+1, 10, pl.block, CLR_BLUE)+1; }
+    if (pl.str)   { txt_put(xx, 10, "S", CLR_RED);  xx = txt_int_at(xx+1, 10, pl.str, CLR_RED)+1; }
+    /* energy top-right of player row */
+    ui_tile(26, 10, T_ENERGY, CLR_YELLOW);
+    txt_int(28, 10, pl.energy, CLR_YELLOW);
+    xx = 1;
+    if (pl.weak) { txt_put(xx, 11, "WK", CLR_GREEN); xx = txt_int_at(xx+3, 11, pl.weak, CLR_GREEN)+1; }
+    if (pl.vuln) { txt_put(xx, 11, "VU", CLR_PURPLE); xx = txt_int_at(xx+3, 11, pl.vuln, CLR_PURPLE)+1; }
+    if (pl.thorns) { txt_put(xx, 11, "TH", CLR_ORANGE); xx = txt_int_at(xx+3, 11, pl.thorns, CLR_ORANGE)+1; }
+    if (pl.metallicize) { txt_put(xx, 11, "MT", CLR_CYAN); xx = txt_int_at(xx+3, 11, pl.metallicize, CLR_CYAN)+1; }
+    /* pile counts right side */
+    xx = txt_int_at(19, 11, piles.ndraw, CLR_CYAN);
+    txt_put(xx, 11, "DRW", CLR_GRAY);
+    xx = txt_int_at(xx + 4, 11, piles.ndiscard, CLR_ORANGE);
+    txt_put(xx, 11, "DSC", CLR_GRAY);
 }
 
 static void draw_hand(int sel)
 {
     char nb[16];
-    txt_put(1, 11, "HAND", CLR_GRAY);
-    txt_int(6, 11, piles.nhand, CLR_GRAY);
-    int dx = txt_int_at(12, 11, piles.ndraw, CLR_CYAN);
-    txt_put(dx, 11, "DRW", CLR_GRAY);
-    dx = txt_int_at(dx + 4, 11, piles.ndiscard, CLR_ORANGE);
-    txt_put(dx, 11, "DSC", CLR_GRAY);
-
-    for (int i = 0; i < piles.nhand; i++) {
-        int y = 12 + (i > 4 ? i - 5 : i) * 0; /* single col list */
-        (void)y;
-    }
     /* list rows 12..17, scroll around sel */
     int top = 0;
     const int ROWS = 6;
@@ -517,13 +530,15 @@ static void draw_all(int sel, int cursor, int targeting)
 {
     txt_clear(); ui_clear();
     /* top bar */
-    txt_put(0, 0, "FLR", CLR_GRAY); txt_int(4, 0, run.floor + 1, CLR_WHITE);
+    txt_put(0, 0, "FLR", CLR_GRAY); txt_int(4, 0, run.floor, CLR_WHITE);
     txt_put(8, 0, "TURN", CLR_GRAY); txt_int(13, 0, combat_turn, CLR_WHITE);
     ui_tile(20, 0, T_GOLDPT, CLR_YELLOW);
     txt_int(22, 0, run.gold, CLR_YELLOW);
     draw_enemies(cursor, targeting);
     draw_player();
     draw_hand(sel);
+    if (piles.nhand > 0 && sel < piles.nhand)
+        txt_put(1, 18, cards[piles.hand[sel].id].desc, CLR_GRAY);
     txt_put(0, 19, targeting ? "L/R:TARGET A:GO B:NO"
                              : "A:PLAY R:END B:DECK", CLR_GRAY);
 }
@@ -613,7 +628,7 @@ void combat_screen(int encounter)
             if (key_repeat(KEY_DOWN) && sel < piles.nhand - 1) { sel++; sfx_blip(); break; }
             if (key_hit(KEY_A) && piles.nhand > 0) { act = 1; break; }
             if (key_hit(KEY_R)) { act = 2; break; }
-            if (key_hit(KEY_B)) { deck_browse("DECK", 0); break; }
+            if (key_hit(KEY_B)) { obj_hide_all(); deck_browse("DECK", 0); break; }
         }
 
         if (act == 1) {
@@ -663,11 +678,13 @@ void combat_screen(int encounter)
         /* outcomes */
         if (run.hp <= 0) {
             run.hp = 0;
+            obj_hide_all();
             gstate = ST_GAMEOVER;
             return;
         }
         if (enemies_alive() == 0) {
             combat_won = 1;
+            obj_hide_all();
             gstate = boss_fight ? ST_VICTORY : ST_REWARD;
             return;
         }

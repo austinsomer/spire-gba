@@ -119,7 +119,7 @@ void video_init(void)
     ui_clear();
 
     /* hide all sprites */
-    for (int i = 0; i < 128; i++) OAM_OBJS[i].attr0 = ATTR0_HIDE;
+    obj_hide_all();
 
     /* vblank irq for vsync */
     ISR_VECTOR = (u32)0; /* set below via extern */
@@ -130,9 +130,18 @@ void video_init(void)
     REG_IME = 1;
 }
 
+/* OAM shadow: hardware OAM only writable in vblank, so obj_* edit this
+   and vsync() commits it right after the vblank wait */
+static ObjAttr oam_shadow[128];
+
 void vsync(void)
 {
     __asm__ volatile("swi 0x05" ::: "r0", "r1", "r2", "r3");
+    {
+        volatile u32 *dst = (volatile u32 *)MEM_OAM;
+        const u32 *src = (const u32 *)oam_shadow;
+        for (int i = 0; i < 128 * 2; i++) dst[i] = src[i];
+    }
     frame_count++;
 #ifdef AUTOPLAY
     /* heartbeat: spinner top-right proves CPU alive + in vsync loop */
@@ -257,6 +266,37 @@ void ui_bar(int x, int y, int wtiles, int val, int max, int clr)
         if (p > 8) p = 8;
         ui_tile(x + i, y, T_BAR0 + p, clr);
     }
+}
+
+/* ---- obj sprites ---- */
+#define SPRITES_DATA
+#include "sprites.h"
+
+void sprites_load(void)
+{
+    vu16 *dst = (vu16 *)0x06010000;
+    const u16 *src16 = (const u16 *)sprite_tiles;
+    for (u32 i = 0; i < sizeof(sprite_tiles) / 2; i++) dst[i] = src16[i];
+    for (int s = 0; s < N_SPRITES; s++) {
+        MEM_PAL_OBJ[s * 16] = 0;
+        for (int c = 0; c < 15; c++)
+            MEM_PAL_OBJ[s * 16 + 1 + c] = sprite_pals[s][c];
+    }
+}
+
+void obj_show(int i, int sprite, int x, int y)
+{
+    oam_shadow[i].attr0 = (u16)(ATTR0_Y(y) | ATTR0_SQUARE);
+    oam_shadow[i].attr1 = (u16)(ATTR1_X(x) | ATTR1_SIZE(2));
+    oam_shadow[i].attr2 = (u16)(ATTR2_TILE(sprite_tile_ofs[sprite]) |
+                                ATTR2_PAL(sprite) | ATTR2_PRIO(1));
+}
+
+void obj_hide(int i) { oam_shadow[i].attr0 = ATTR0_HIDE; }
+
+void obj_hide_all(void)
+{
+    for (int i = 0; i < 128; i++) oam_shadow[i].attr0 = ATTR0_HIDE;
 }
 
 /* ---- rng ---- */
