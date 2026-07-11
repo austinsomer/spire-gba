@@ -13,7 +13,7 @@ OBJ     := $(patsubst src/%.c,$(BUILD)/%.o,$(SRC_C)) $(BUILD)/crt0.o
 
 ARCH    := -mcpu=arm7tdmi -mthumb -mthumb-interwork
 CFLAGS  := $(ARCH) -O2 -Wall -Wextra -Wno-unused-parameter -fno-strict-aliasing \
-           -ffunction-sections -fdata-sections -Isrc
+           -ffunction-sections -fdata-sections -Isrc $(EXTRA)
 LDFLAGS := $(ARCH) -nostartfiles -nostdlib -T src/gba.ld -Wl,--gc-sections -lgcc
 
 all: $(ROM)
