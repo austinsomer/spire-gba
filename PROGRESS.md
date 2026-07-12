@@ -19,6 +19,9 @@ Goal: playable .gba rom, Slay the Spire act 1, Ironclad, direct clone names (per
 - [x] Map overhaul: BG2 = 32x64 scrolling layer (SB 28+29, vofs camera). 16x16 sage-backfilled icons (mkbg @big: + !opaque), runtime dashed/solid path patterns + dim bank 14 + line/cursor bank 15 (src/map.c). UP/DOWN pans, camera centers current floor. MAPTEST define = pre-walked map for screenshots. Pattern tiles rebuilt on every map_screen entry (mode-4 title clobbers cb1).
 - [x] Bitmap title: user key art via tools/mkimage.py (mode 4, 254-color quantize, font8x8 1.5x "NEW GAME" bake at y~120, arrow on reserved pal slot 255 → blinked by palette cycling in title loop). Source png kept at tools/title_src.png. Mode-4 exit MUST: video_init + sprites_load + bg2_load + txt2x_reset (bitmap clobbers charblocks 0-2; bg2_load re-blanks cb1 tile 0).
 
+- [x] Battle UX overhaul (user mock): image backdrop via tools/mkbattlebg.py (deduped tiles at index 320+, bank 9 entries 4-14, battle_bg_load per combat entry), framed hp bars top, status lines w/ icons, intent icon+dmg, shadow sprites, 4-slot big card row (cost orb/name banner/16x16 art inset via BG2 window in BG1 fill/dmg). Sprites prio 2 (HUD renders over). FIXED: sprite palettes >16 banks wrapped into BG bank 0 (mksprites now packs shared banks); gcc strlen emission (mem.c). BATTLETEST define boots straight into jaw worm fight.
+- [x] PNG asset pipeline: tools/assets.py export/import + ASSETS.md — user edits PNGs in assets/, importer splices back into art sources w/ palette-budget validation. Round-trip verified.
+
 ## Design decisions
 - Player: Ironclad 80 HP, 3 energy, draw 5. Statuses: Wound/Burn/Slimed/Dazed.
 - Screens run own loops, set `gstate` to advance (see main.c state machine).
