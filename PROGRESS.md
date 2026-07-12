@@ -13,12 +13,14 @@ Goal: playable .gba rom, Slay the Spire act 1, Ironclad, direct clone names (per
 - [x] Enemy sprites: 15 32x32 OBJ sprites (tools/art.txt ASCII → tools/mksprites.py → src/sprites.h). OAM shadow committed in vsync (OAM ignores writes outside vblank). VERIFIED in mGBA (slimes w/ faces render).
 - [x] FIXED: memset self-recursion — gcc pattern-matched freestanding memset body into a memset call → infinite recursion, SP underflow, wild exec. mem.o builds w/ -fno-builtin -fno-tree-loop-distribute-patterns. Found via mGBA gdb stub (-g) + raw RSP python client (no arm-gdb on box; lldb batch dies on SIGINT). Single-step SP trace nailed it.
 - [x] Makefile: header deps now tracked ($(HDRS)) — stale engine.o w/ old sprites.h cost a debug cycle.
-- [x] Task 5: 6+ min monkey soak clean (deep runs, shop/relics cycling, sprites across species), ship build boots to title. GAME COMPLETE — polish/refinement phase next.
+- [x] Task 5: 6+ min monkey soak clean (deep runs, shop/relics cycling, sprites across species), ship build boots to title. GAME COMPLETE.
+- [x] UI overhaul (user mockups): BG2 scenery layer (charblock 1, sbb 29, banks 10-15, tools/mkbg.py + tools/bgart.txt), scene composers (src/scene.c). Title: 2x gold logo (txt_put2x synthesizes scaled glyphs into cb0 200+), wall+torches, ironclad+cultist sprites. Map: icon nodes (skull/elite/fire/chest/coin/?/boss) + legend. Battle: stage layout — ironclad left (oam5), enemies right at 120+i*40, intents above, hp bars below, card-strip hand (5 slots, type-colored frames), L/R select. Shop: keeper sprite (looter), panel list, desc on bottom line. All VERIFIED via mGBA window screenshots.
+- Art authored by subagent: 7 bg tiles + 7 icons (tools/bgart.txt), @ironclad sprite (art.txt).
 
 ## Design decisions
 - Player: Ironclad 80 HP, 3 energy, draw 5. Statuses: Wound/Burn/Slimed/Dazed.
 - Screens run own loops, set `gstate` to advance (see main.c state machine).
-- Verify visually: `make run`, then `screencapture -x <scratchpad>/shot.png` + Read image. Bring mGBA front w/ `open -a mGBA` first (other windows cover it). osascript keystrokes BLOCKED (no accessibility perm) → use `-DAUTOPLAY` builds: combat bot + monkey input in key_poll.
+- Verify visually: `make run`, then capture mGBA WINDOW directly (works even occluded): pyobjc Quartz CGWindowListCopyWindowInfo → find owner 'mGBA' w/ name → `screencapture -x -l<windowid>`. NOTE: mGBA auto-pauses when fully occluded — identical frames ≠ game hang. osascript keystrokes BLOCKED (no accessibility perm) → use `-DAUTOPLAY` builds: combat bot + monkey input in key_poll.
 - `make EXTRA=-DAUTOPLAY` = self-playing build for soak tests. Ship build: plain `make` (do `make clean` when switching!).
 - Text grid 30x20, txt_* on BG0, ui_* on BG1. Colors = palette banks (CLR_* enum).
 - No libc: src/mem.c provides memcpy/memmove/memset (gcc emits calls for struct copies).
