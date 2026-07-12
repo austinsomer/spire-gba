@@ -16,6 +16,7 @@ Goal: playable .gba rom, Slay the Spire act 1, Ironclad, direct clone names (per
 - [x] Task 5: 6+ min monkey soak clean (deep runs, shop/relics cycling, sprites across species), ship build boots to title. GAME COMPLETE.
 - [x] UI overhaul (user mockups): BG2 scenery layer (charblock 1, sbb 29, banks 10-15, tools/mkbg.py + tools/bgart.txt), scene composers (src/scene.c). Title: 2x gold logo (txt_put2x synthesizes scaled glyphs into cb0 200+), wall+torches, ironclad+cultist sprites. Map: icon nodes (skull/elite/fire/chest/coin/?/boss) + legend. Battle: stage layout — ironclad left (oam5), enemies right at 120+i*40, intents above, hp bars below, card-strip hand (5 slots, type-colored frames), L/R select. Shop: keeper sprite (looter), panel list, desc on bottom line. All VERIFIED via mGBA window screenshots.
 - Art authored by subagent: 7 bg tiles + 7 icons (tools/bgart.txt), @ironclad sprite (art.txt).
+- [x] Bitmap title: user key art via tools/mkimage.py (mode 4, 254-color quantize, font8x8 1.5x "NEW GAME" bake at y~120, arrow on reserved pal slot 255 → blinked by palette cycling in title loop). Source png kept at tools/title_src.png. Mode-4 exit MUST: video_init + sprites_load + bg2_load + txt2x_reset (bitmap clobbers charblocks 0-2; bg2_load re-blanks cb1 tile 0).
 
 ## Design decisions
 - Player: Ironclad 80 HP, 3 energy, draw 5. Statuses: Wound/Burn/Slimed/Dazed.
