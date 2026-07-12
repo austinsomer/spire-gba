@@ -194,7 +194,7 @@ static void setup_encounter(int enc)
     case ENC_CULTIST:  spawn(nen++, EN_CULTIST); break;
     case ENC_JAWWORM:  spawn(nen++, EN_JAWWORM); break;
     case ENC_LOUSES:   spawn(nen++, EN_LOUSE_R); spawn(nen++, EN_LOUSE_G); break;
-    case ENC_SLIMES:   spawn(nen++, EN_ACID_M);  spawn(nen++, EN_SPIKE_M); break;
+    case ENC_SLIMES:   spawn(nen++, EN_SPIKE_M); spawn(nen++, EN_SPIKE_M); break;
     case ENC_LOOTER:   spawn(nen++, EN_LOOTER); break;
     case ENC_FUNGI:    spawn(nen++, EN_FUNGI);   spawn(nen++, EN_FUNGI); break;
     case ENC_SLAVER:   spawn(nen++, EN_SLAVER); break;
@@ -290,7 +290,7 @@ static void post_damage_checks(void)
             s16 hp = e->hp;
             e->alive = 0;
             nen = 0;
-            spawn(nen++, EN_ACID_L);  en[0].hp = en[0].maxhp = hp;
+            spawn(nen++, EN_SPIKE_L); en[0].hp = en[0].maxhp = hp;
             spawn(nen++, EN_SPIKE_L); en[1].hp = en[1].maxhp = hp;
             sfx_bad();
         }
@@ -420,7 +420,7 @@ static void enemy_turn(void)
 static const u8 species_spr[N_ENEMIES] = {
     [EN_CULTIST] = SPR_CULTIST, [EN_JAWWORM] = SPR_JAWWORM,
     [EN_LOUSE_R] = SPR_LOUSE_R, [EN_LOUSE_G] = SPR_LOUSE_G,
-    [EN_ACID_M] = SPR_ACIDSLIME, [EN_ACID_L] = SPR_ACIDSLIME,
+    [EN_ACID_M] = SPR_SPIKESLIME, [EN_ACID_L] = SPR_SPIKESLIME,
     [EN_SPIKE_M] = SPR_SPIKESLIME, [EN_SPIKE_L] = SPR_SPIKESLIME,
     [EN_LOOTER] = SPR_LOOTER, [EN_FUNGI] = SPR_FUNGI,
     [EN_SLAVER] = SPR_SLAVER, [EN_NOB] = SPR_NOB,
@@ -471,10 +471,19 @@ static void draw_enemies(int cursor, int targeting)
         Enemy *e = &en[i];
         int cx = EN_X(i) / 8;
         if (!e->alive) { obj_hide(i); obj_hide(OAM_SHADOW0 + 1 + i); continue; }
-        obj_show(OAM_SHADOW0 + 1 + i, SPR_SHADOW, EN_X(i), STAGE_Y + 8);
-        obj_show(i, species_spr[e->id], EN_X(i), STAGE_Y);
-        /* intent above sprite: icon + numbers */
-        int iy = 7;
+        int is_boss = (e->id == EN_SLIMEBOSS || e->id == EN_GUARDIAN ||
+                       e->id == EN_HEXAGHOST);
+        if (is_boss) {
+            obj_show(OAM_SHADOW0 + 1 + i, SPR_SHADOW, EN_X(i) - 10, STAGE_Y + 8);
+            obj_show(10, SPR_SHADOW, EN_X(i) + 10, STAGE_Y + 8);
+            obj_show_big(i, species_spr[e->id], EN_X(i) - 16, STAGE_Y - 32);
+        } else {
+            obj_hide(10);
+            obj_show(OAM_SHADOW0 + 1 + i, SPR_SHADOW, EN_X(i), STAGE_Y + 8);
+            obj_show(i, species_spr[e->id], EN_X(i), STAGE_Y);
+        }
+        /* intent above sprite: icon + numbers (higher for 2x bosses) */
+        int iy = is_boss ? 4 : 7;
         if (e->mv.kind == MV_ATK) {
             int dmg = e->mv.dmg + e->str;
             if (e->weak) dmg = dmg * 3 / 4;

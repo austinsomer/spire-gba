@@ -71,6 +71,7 @@ void scene_none(void);
 /* obj sprites (32x32, ids in sprites.h enum) */
 void sprites_load(void);
 void obj_show(int oam_i, int sprite, int x, int y);
+void obj_show_big(int oam_i, int sprite, int x, int y);  /* 2x scaled */
 void obj_hide(int oam_i);
 void obj_hide_all(void);
 

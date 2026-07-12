@@ -279,6 +279,9 @@ void ui_bar(int x, int y, int wtiles, int val, int max, int clr)
 
 void sprites_load(void)
 {
+    /* affine param group 0 = 0.5 scale matrix -> 2x magnification */
+    oam_shadow[0].pad = 0x0080; oam_shadow[1].pad = 0;
+    oam_shadow[2].pad = 0;      oam_shadow[3].pad = 0x0080;
     vu16 *dst = (vu16 *)0x06010000;
     const u16 *src16 = (const u16 *)sprite_tiles;
     for (u32 i = 0; i < sizeof(sprite_tiles) / 2; i++) dst[i] = src16[i];
@@ -293,6 +296,16 @@ void obj_show(int i, int sprite, int x, int y)
 {
     oam_shadow[i].attr0 = (u16)(ATTR0_Y(y) | ATTR0_SQUARE);
     oam_shadow[i].attr1 = (u16)(ATTR1_X(x) | ATTR1_SIZE(2));
+    oam_shadow[i].attr2 = (u16)(ATTR2_TILE(sprite_tile_ofs[sprite]) |
+                                ATTR2_PAL(sprite_pal_bank[sprite]) |
+                                ATTR2_PRIO(2));
+}
+
+void obj_show_big(int i, int sprite, int x, int y)
+{
+    /* 32x32 source magnified 2x via affine group 0 (double-size box 64x64) */
+    oam_shadow[i].attr0 = (u16)(ATTR0_Y(y) | ATTR0_SQUARE | 0x0100 | 0x0200);
+    oam_shadow[i].attr1 = (u16)(ATTR1_X(x) | ATTR1_SIZE(2));   /* param 0 */
     oam_shadow[i].attr2 = (u16)(ATTR2_TILE(sprite_tile_ofs[sprite]) |
                                 ATTR2_PAL(sprite_pal_bank[sprite]) |
                                 ATTR2_PRIO(2));
