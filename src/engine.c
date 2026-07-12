@@ -5,6 +5,7 @@
    BG1 ui:   charblock 0, screenblock 30, prio 1 */
 #define SB_TXT 31
 #define SB_UI  30
+#define SB_BG  29
 
 u32 frame_count;
 static u16 keys_cur, keys_prev;
@@ -54,11 +55,14 @@ static void load_tile_rows(int index, const u8 *rows, int fg, int bg)
 
 void video_init(void)
 {
-    REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_OBJ | DCNT_OBJ_1D;
+    REG_DISPCNT = DCNT_MODE0 | DCNT_BG0 | DCNT_BG1 | DCNT_BG2 |
+                  DCNT_OBJ | DCNT_OBJ_1D;
     REG_BG0CNT = BG_CBB(0) | BG_SBB(SB_TXT) | BG_PRIO(0);
     REG_BG1CNT = BG_CBB(0) | BG_SBB(SB_UI)  | BG_PRIO(1);
+    REG_BG2CNT = BG_CBB(1) | BG_SBB(SB_BG)  | BG_PRIO(2);
     REG_BG0HOFS = 0; REG_BG0VOFS = 0;
     REG_BG1HOFS = 0; REG_BG1VOFS = 0;
+    REG_BG2HOFS = 0; REG_BG2VOFS = 0;
 
     /* palettes: 10 banks, colors 1..3 */
     MEM_PAL_BG[0] = RGB15(2, 2, 4);  /* backdrop: near-black blue */
@@ -297,6 +301,109 @@ void obj_hide(int i) { oam_shadow[i].attr0 = ATTR0_HIDE; }
 void obj_hide_all(void)
 {
     for (int i = 0; i < 128; i++) oam_shadow[i].attr0 = ATTR0_HIDE;
+}
+
+/* ---- bg2 scenery + icons ---- */
+#define BGTILES_DATA
+#include "bgtiles.h"
+
+void bg2_load(void)
+{
+    /* scenery tiles -> charblock 1 (tile 0 left blank) */
+    for (int t = 1; t < N_BGTILES; t++) {
+        vu16 *dst = CHARBLOCK(1) + t * 16;
+        const u32 *src = &bgtile_px[(t - 1) * 8];
+        for (int y = 0; y < 8; y++) {
+            dst[y * 2]     = src[y] & 0xFFFF;
+            dst[y * 2 + 1] = src[y] >> 16;
+        }
+    }
+    /* icon tiles -> charblock 0 at ICON_BASE */
+    for (int t = 0; t < N_ICONS; t++) {
+        vu16 *dst = CHARBLOCK(0) + (ICON_BASE + t) * 16;
+        const u32 *src = &icon_px[t * 8];
+        for (int y = 0; y < 8; y++) {
+            dst[y * 2]     = src[y] & 0xFFFF;
+            dst[y * 2 + 1] = src[y] >> 16;
+        }
+    }
+    /* palette banks 10..15 */
+    for (int b = 0; b < 6; b++)
+        for (int c = 0; c < 15; c++)
+            MEM_PAL_BG[(10 + b) * 16 + 1 + c] = bgbank_pal[b][c];
+}
+
+void bg2_tile(int x, int y, int tile)
+{
+    if (x < 0 || x >= 32 || y < 0 || y >= 32) return;
+    SCREENBLOCK(SB_BG)[y * 32 + x] =
+        (u16)(tile | (bg_tile_bank[tile] << 12));
+}
+
+void bg2_fill(int x, int y, int w, int h, int tile)
+{
+    for (int j = 0; j < h; j++)
+        for (int i = 0; i < w; i++)
+            bg2_tile(x + i, y + j, tile);
+}
+
+void bg2_clear(void)
+{
+    vu16 *m = SCREENBLOCK(SB_BG);
+    for (int i = 0; i < 32 * 32; i++) m[i] = 0;
+}
+
+void ui_icon(int x, int y, int icon)   /* icon = TI_* absolute tile index */
+{
+    if (x < 0 || x >= 32 || y < 0 || y >= 32) return;
+    SCREENBLOCK(SB_UI)[y * 32 + x] =
+        (u16)(icon | (icon_bank[icon - ICON_BASE] << 12));
+}
+
+/* ---- 2x text: synthesize scaled glyphs into cb0 tiles 200+ ----
+   each 2x glyph = 4 tiles; ~77 slots free above icons */
+#define BIG_BASE 200
+static u8 big_cached[128];
+static int big_next = 1;   /* slot 0 reserved so cache 0 = miss */
+
+static int big_glyph(char c)
+{
+    u8 uc = (u8)c & 0x7F;
+    if (big_cached[uc]) return big_cached[uc];
+    int slot = big_next++;
+    /* expand font glyph 2x into 4 tiles (TL TR BL BR) */
+    for (int q = 0; q < 4; q++) {
+        vu16 *dst = CHARBLOCK(0) + (BIG_BASE + slot * 4 + q) * 16;
+        int oy = (q >> 1) * 4, ox = (q & 1) * 4;
+        for (int y = 0; y < 8; y++) {
+            u8 row = font8x8_basic[uc][oy + y / 2];
+            u32 line = 0;
+            for (int x = 0; x < 8; x++)
+                if (row & (1 << (ox + x / 2))) line |= 1u << (x * 4);
+            dst[y * 2]     = line & 0xFFFF;
+            dst[y * 2 + 1] = line >> 16;
+        }
+    }
+    big_cached[uc] = (u8)slot;
+    return slot;
+}
+
+static void txt_raw(int x, int y, int tile, int clr)
+{
+    if (x < 0 || x >= 32 || y < 0 || y >= 32) return;
+    SCREENBLOCK(SB_TXT)[y * 32 + x] = (u16)(tile | (clr << 12));
+}
+
+void txt_put2x(int x, int y, const char *s, int clr)
+{
+    for (; *s; s++, x += 2) {
+        if (*s == ' ') continue;
+        int base = BIG_BASE + big_glyph(*s) * 4;
+        txt_raw(x,     y,     base,     clr);
+        txt_raw(x + 1, y,     base + 1, clr);
+        txt_raw(x,     y + 1, base + 2, clr);
+        txt_raw(x + 1, y + 1, base + 3, clr);
+    }
 }
 
 /* ---- rng ---- */

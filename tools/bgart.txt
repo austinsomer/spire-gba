@@ -1,0 +1,69 @@
+# BG scenery tiles (charblock 1, drawn on BG2 behind everything)
+# and icon tiles (charblock 0, drawn on BG1 ui layer).
+# See tools/mkbg.py header for format. Palette banks 10-15, RGB 0..31.
+# '.' = transparent (backdrop shows through; backdrop is near-black blue).
+
+!bank 10 dungeon
+=k 1 1 3
+=s 4 4 7
+=S 6 6 10
+=m 3 3 6
+=f 5 4 6
+=F 7 6 9
+
+@brick 10
+sssssssk
+sSsssssk
+sssssssk
+kkkkkkkk
+ssskssss
+sSskssss
+ssskssss
+kkkkkkkk
+
+@brickdark 10
+mmmmmmmk
+mmmmmmmk
+mmmmmmmk
+kkkkkkkk
+mmmkmmmm
+mmmkmmmm
+mmmkmmmm
+kkkkkkkk
+
+@floor 10
+ffffffff
+fFffffff
+ffffffff
+ffffffff
+ffffFfff
+ffffffff
+ffffffff
+ffffffff
+
+!bank 11 icons
+=w 28 28 26
+=k 2 2 2
+=o 28 16 4
+=y 30 26 8
+=r 24 6 6
+
+@icon:skull 11
+..wwww..
+.wwwwww.
+.wkwwkw.
+.wwwwww.
+..wwww..
+..w.w.w.
+..wwww..
+........
+
+@icon:fire 11
+....o...
+...oo...
+..oyo.o.
+..oyoo..
+.oyyyo..
+.oyyyoo.
+..oooo..
+...kk...

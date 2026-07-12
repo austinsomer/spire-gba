@@ -47,6 +47,16 @@ int  rng_range(int n);       /* 0..n-1 */
 void rng_seed(u32 s);
 extern u32 frame_count;
 
+/* BG2 scenery layer (charblock 1, behind BG0/BG1). tiles in bgtiles.h */
+void bg2_load(void);                       /* tiles + palette banks 10-15 */
+void bg2_tile(int x, int y, int tile);     /* bank auto from tile */
+void bg2_fill(int x, int y, int w, int h, int tile);
+void bg2_clear(void);
+void ui_icon(int x, int y, int icon);      /* icon tile on BG1, own bank */
+
+/* 2x-scaled text on BG0 (each glyph = 2x2 tiles, synthesized) */
+void txt_put2x(int x, int y, const char *s, int clr);
+
 /* obj sprites (32x32, ids in sprites.h enum) */
 void sprites_load(void);
 void obj_show(int oam_i, int sprite, int x, int y);
