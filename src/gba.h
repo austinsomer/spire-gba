@@ -79,11 +79,17 @@ typedef volatile u32 vu32;
 #define REG_SOUNDCNT_L  REG(0x04000080)
 #define REG_SOUNDCNT_H  REG(0x04000082)
 #define REG_SOUNDCNT_X  REG(0x04000084)
-#define REG_SOUND1CNT_L REG(0x04000060)
-#define REG_SOUND1CNT_H REG(0x04000062)
-#define REG_SOUND1CNT_X REG(0x04000064)
-#define REG_SOUND4CNT_L REG(0x04000078)
-#define REG_SOUND4CNT_H REG(0x0400007C)
+#define REG_SOUND1CNT_L REG(0x04000060)   /* ch1 pulse: sweep */
+#define REG_SOUND1CNT_H REG(0x04000062)   /* ch1 pulse: duty/len/env */
+#define REG_SOUND1CNT_X REG(0x04000064)   /* ch1 pulse: freq/trigger */
+#define REG_SOUND2CNT_L REG(0x04000068)   /* ch2 pulse: duty/len/env */
+#define REG_SOUND2CNT_H REG(0x0400006C)   /* ch2 pulse: freq/trigger */
+#define REG_SOUND3CNT_L REG(0x04000070)   /* ch3 wave: DAC/bank */
+#define REG_SOUND3CNT_H REG(0x04000072)   /* ch3 wave: len/volume */
+#define REG_SOUND3CNT_X REG(0x04000074)   /* ch3 wave: freq/trigger */
+#define REG_SOUND4CNT_L REG(0x04000078)   /* ch4 noise: len/env */
+#define REG_SOUND4CNT_H REG(0x0400007C)   /* ch4 noise: freq/trigger */
+#define MEM_WAVE_RAM    ((vu16 *)0x04000090)  /* 16 bytes = 32 4-bit samples */
 
 /* OAM attributes */
 #define ATTR0_Y(y)      ((y) & 0xFF)

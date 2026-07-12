@@ -5,7 +5,7 @@
    BG1 ui:   charblock 0, screenblock 30, prio 1 */
 #define SB_TXT 31
 #define SB_UI  30
-#define SB_BG  29
+#define SB_BG  28   /* 32x64: uses screenblocks 28+29 */
 
 u32 frame_count;
 static u16 keys_cur, keys_prev;
@@ -59,7 +59,7 @@ void video_init(void)
                   DCNT_OBJ | DCNT_OBJ_1D;
     REG_BG0CNT = BG_CBB(0) | BG_SBB(SB_TXT) | BG_PRIO(0);
     REG_BG1CNT = BG_CBB(0) | BG_SBB(SB_UI)  | BG_PRIO(1);
-    REG_BG2CNT = BG_CBB(1) | BG_SBB(SB_BG)  | BG_PRIO(2);
+    REG_BG2CNT = BG_CBB(1) | BG_SBB(SB_BG) | BG_PRIO(2) | (2 << 14); /* 32x64 */
     REG_BG0HOFS = 0; REG_BG0VOFS = 0;
     REG_BG1HOFS = 0; REG_BG1VOFS = 0;
     REG_BG2HOFS = 0; REG_BG2VOFS = 0;
@@ -147,6 +147,7 @@ void vsync(void)
         for (int i = 0; i < 128 * 2; i++) dst[i] = src[i];
     }
     frame_count++;
+    music_tick();
 #ifdef AUTOPLAY
     /* heartbeat: spinner top-right proves CPU alive + in vsync loop */
     {
@@ -335,12 +336,25 @@ void bg2_load(void)
             MEM_PAL_BG[(10 + b) * 16 + 1 + c] = bgbank_pal[b][c];
 }
 
+static vu16 *bg2_cell(int x, int y)
+{
+    if (x < 0 || x >= 32 || y < 0 || y >= 64) return 0;
+    return &SCREENBLOCK(SB_BG + (y >> 5))[(y & 31) * 32 + x];
+}
+
 void bg2_tile(int x, int y, int tile)
 {
-    if (x < 0 || x >= 32 || y < 0 || y >= 32) return;
-    SCREENBLOCK(SB_BG)[y * 32 + x] =
-        (u16)(tile | (bg_tile_bank[tile] << 12));
+    vu16 *c = bg2_cell(x, y);
+    if (c) *c = (u16)(tile | (bg_tile_bank[tile] << 12));
 }
+
+void bg2_stamp(int x, int y, int tile, int bank, int hflip)
+{
+    vu16 *c = bg2_cell(x, y);
+    if (c) *c = (u16)(tile | (hflip ? 0x0400 : 0) | (bank << 12));
+}
+
+void bg2_scroll(int y) { REG_BG2VOFS = (u16)y; }
 
 void bg2_fill(int x, int y, int w, int h, int tile)
 {
@@ -352,7 +366,8 @@ void bg2_fill(int x, int y, int w, int h, int tile)
 void bg2_clear(void)
 {
     vu16 *m = SCREENBLOCK(SB_BG);
-    for (int i = 0; i < 32 * 32; i++) m[i] = 0;
+    for (int i = 0; i < 32 * 32 * 2; i++) m[i] = 0;  /* both screenblocks */
+    REG_BG2VOFS = 0;
 }
 
 void ui_icon(int x, int y, int icon)   /* icon = TI_* absolute tile index */

@@ -60,7 +60,14 @@ int main(void)
     sprites_load();
     bg2_load();
     sfx_init();
+    music_init();
+    extern const Song song_sts;
+    music_play(&song_sts);
+#ifdef MAPTEST
+    rng_seed(7); run_new(); gstate = ST_MAP;   /* skip title for map peek */
+#else
     gstate = ST_TITLE;
+#endif
 
     for (;;) {
         switch (gstate) {

@@ -184,3 +184,212 @@ kwwkkwwk
 kWwwwwWk
 .kwkkwk.
 ..kkkk..
+
+# ---- bank 12: muted sage-green stone backdrop ------------------------
+# 5 tones, low contrast: dark olive-sage -> pale sage. Sits behind dark
+# path lines + icons, so texture stays subtle.
+!bank 12 sage
+=d 11 13 9
+=s 14 16 12
+=g 17 19 15
+=h 19 21 17
+=p 22 24 19
+
+# base sage stone: near-flat 'g' with sparse 1px speckles; wraps all dirs
+@sage 12
+gggghggg
+gsgggggg
+ggggggsg
+gggggggg
+ghgggggg
+gggggsgg
+gggggggg
+ggsggghg
+
+# lighter mottled patch; border ring is base 'g' so it blends with @sage
+@sagelight 12
+gggggggg
+gghhhhgg
+ghhphhhg
+ghphhphg
+ghhhhhhg
+ghhphhgg
+gghhhggg
+gggggggg
+
+# darker variant for arch/shadow hints; border ring 'g' blends with @sage
+@sagedark 12
+gggggggg
+ggssssgg
+gssdssgg
+gsdssdsg
+gssssdsg
+ggsdsssg
+ggsssggg
+gggggggg
+
+# ---- bank 13: 16x16 map node icons (bone cream + accents) ------------
+!bank 13 mapicons
+=k 2 3 2
+=w 29 29 25
+=W 22 22 18
+=v 15 15 12
+=o 28 15 3
+=y 31 25 8
+=g 28 22 6
+=b 12 7 3
+=B 18 11 5
+=r 22 4 4
+!opaque 13 17 19 15
+
+# basic monster: round bone skull, simple grin
+@big:m_skull 13
+....kkkkkkkk....
+..kkwwwwwwwwkk..
+.kwwwwwwwwwwwwk.
+.kwwwwwwwwwwwwk.
+kwwwwwwwwwwwwwwk
+kwwkkkwwwwkkkwwk
+kwkkkkkwwkkkkkwk
+kwkkkkkwwkkkkkwk
+kwwkkkwwwwkkkwwk
+kwwwwwwkkwwwwwwk
+.kwwwwwkkwwwwwk.
+.kWwwwwwwwwwwWk.
+.kWwkwwkkwwkwWk.
+..kwkwwkkwwkwk..
+...kkWWWWWWkk...
+....kkkkkkkk....
+
+# elite: skull with big curved horns
+@big:m_elite 13
+.kk..........kk.
+kWWk........kWWk
+kWWwk......kwWWk
+.kwwwk....kwwwk.
+.kkwwkwwwwkwwkk.
+..kwwwwwwwwwwk..
+.kwwwwwwwwwwwwk.
+kwwkkkwwwwkkkwwk
+kwkkkkkwwkkkkkwk
+kwwkkkwwwwkkkwwk
+kwwwwwwkkwwwwwwk
+.kwwwwwkkwwwwwk.
+.kWwwwwwwwwwwWk.
+.kWwkwwkkwwkwWk.
+..kwkwwkkwwkwk..
+...kkkkkkkkkk...
+
+# rest: campfire, orange/yellow flame w/ white-hot core over crossed logs
+@big:m_fire 13
+.......kk.......
+......kyyk......
+......kyyk......
+.....kyyyyk.....
+.....koyyyk.....
+....koyywyyk....
+....koywwyyk....
+...koyywwyyyk...
+...koyywwyyok...
+..koyyywwyyyok..
+..koyyyyyyyook..
+...kooooooook...
+kbbk......kbbk..
+.kbbk....kbbk...
+..kbbbkkbbbk....
+...kbbbbbbk.....
+
+# treasure: brown chest, gold trim band + gold latch with dark keyhole
+@big:m_chest 13
+................
+..kkkkkkkkkkkk..
+.kBBBBBBBBBBBBk.
+.kBbbbbbbbbbbbk.
+kBbbbbbbbbbbbbbk
+kBbbbbbbbbbbbbbk
+kggggggggggggggk
+kbbbbkggggkbbbbk
+kbbbbkgkkgkbbbbk
+kbbbbkggggkbbbbk
+kbbbbbkkkkbbbbbk
+kbbbbbbbbbbbbbbk
+.kbbbbbbbbbbbbk.
+.kggggggggggggk.
+..kkkkkkkkkkkk..
+................
+
+# shop: gold coin, cream glint top-left, orange shade bottom-right
+@big:m_coin 13
+.....kkkkkk.....
+...kkggggggkk...
+..kggggggggggk..
+.kgwwwggggggggk.
+.kwwwgggggggggk.
+kgwwgggggggggook
+kgwggggggggggook
+kggggggggggggook
+kggggggggggooook
+kgggggggggoooook
+kggggggggooooook
+.kgggggggoooook.
+..kggggggoooook..
+...kkggooookk...
+.....kkkkkk.....
+................
+
+# event: bold yellow question mark, dark outline
+@big:m_question 13
+...kkkkkkkk.....
+..kyyyyyyyyk....
+.kyyyyyyyyyyk...
+.kyyykkkkyyyk...
+.kyyyk..kyyyk...
+.kkkkk..kyyyk...
+.......kyyyyk...
+......kyyyyk....
+.....kyyyyk.....
+.....kyyyk......
+.....kyyyk......
+.....kkkkk......
+....kkkkkk......
+....kyyyyk......
+....kyyyyk......
+....kkkkkk......
+
+# boss: large menacing horned skull, red eyes in dark sockets
+@big:m_boss 13
+kk............kk
+kWkk........kkWk
+kWWwk......kwWWk
+.kwwwkwwwwkwwwk.
+.kwwwwwwwwwwwwk.
+kwwwwwwwwwwwwwwk
+kwwwwwwwwwwwwwwk
+kwkkkwwwwwwkkkwk
+kwkrrkwwwwkrrkwk
+kwkrrkwwwwkrrkwk
+kwwkkwwkkwwkkwwk
+kwwwwwwkkwwwwwwk
+.kwwwwwwwwwwwwk.
+.kWwkwkwwkwkwWk.
+..kwkwkwwkwkwk..
+...kkkkkkkkkk...
+
+# visited-node fallback: small filled bone diamond, centered
+@big:m_dot 13
+................
+................
+................
+................
+................
+.......kk.......
+......kwwk......
+.....kwwwwk.....
+.....kwWWwk.....
+......kWWk......
+.......kk.......
+................
+................
+................
+................
+................

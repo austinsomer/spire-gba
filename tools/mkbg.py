@@ -26,10 +26,17 @@ def main():
         line = raw.rstrip('\n')
         if not line.strip() or line.lstrip().startswith('#'):
             continue
-        if line.startswith('!bank'):
+        if line.startswith('!opaque'):
+            # !opaque <bank> R G B : tiles of this bank get index-0 pixels
+            # replaced by this backfill color (appended to the palette)
+            p = line.split()
+            b = banks[int(p[1])]
+            b['colors'].append((int(p[2]), int(p[3]), int(p[4])))
+            b['backfill'] = len(b['colors'])
+        elif line.startswith('!bank'):
             parts = line.split()
             cur = int(parts[1])
-            banks[cur] = {'map': {}, 'colors': []}
+            banks[cur] = {'map': {}, 'colors': [], 'backfill': 0}
         elif line.startswith('='):
             m = re.match(r'=(\S)\s+(\d+)\s+(\d+)\s+(\d+)', line)
             b = banks[cur]
@@ -45,15 +52,34 @@ def main():
             trows.append(line)
     if tname: tiles.append((tname, tbank, trows, ticon))
 
-    def encode(rows, bank):
+    # split 16x16 blocks (name prefix 'big:', 16 rows) into 4 8x8 bg tiles
+    # named <NAME> (TL; enum base) + _TR/_BL/_BR, consecutive
+    expanded = []
+    for name, bank, rows, icon in tiles:
+        if name.startswith('big:'):
+            n = name[4:]
+            rows = [r.ljust(16, '.') for r in rows]
+            assert len(rows) == 16, f'{n}: {len(rows)} rows (need 16)'
+            quads = [(n, 0, 0), (n + '_tr', 8, 0),
+                     (n + '_bl', 0, 8), (n + '_br', 8, 8)]
+            for qn, ox, oy in quads:
+                expanded.append((qn, bank,
+                                 [rows[oy + i][ox:ox + 8] for i in range(8)],
+                                 False))
+        else:
+            expanded.append((name, bank, rows, icon))
+    tiles = expanded
+
+    def encode(rows, bank, opaque=False):
         rows = [r.ljust(8, '.') for r in rows]
         assert len(rows) == 8
+        bf = banks[bank].get('backfill', 0) if opaque else 0
         words = []
         for y in range(8):
             w = 0
             for x in range(8):
                 ch = rows[y][x]
-                idx = 0 if ch == '.' else banks[bank]['map'][ch]
+                idx = bf if ch == '.' else banks[bank]['map'][ch]
                 w |= idx << (x * 4)
             words.append(w)
         return words
@@ -82,7 +108,7 @@ def main():
         f.write('#ifdef BGTILES_DATA  /* define in exactly one TU (engine.c) */\n')
         f.write(f'static const u32 bgtile_px[{max(len(bgt),1) * 8}] = {{\n')
         for n, b, r, _ in bgt:
-            f.write('    ' + ','.join(f'0x{w:08x}' for w in encode(r, b)) + f', /* {n} */\n')
+            f.write('    ' + ','.join(f'0x{w:08x}' for w in encode(r, b, opaque=True)) + f', /* {n} */\n')
         f.write('};\n')
         f.write(f'static const u32 icon_px[{max(len(ict),1) * 8}] = {{\n')
         for n, b, r, _ in ict:

@@ -50,6 +50,8 @@ extern u32 frame_count;
 /* BG2 scenery layer (charblock 1, behind BG0/BG1). tiles in bgtiles.h */
 void bg2_load(void);                       /* tiles + palette banks 10-15 */
 void bg2_tile(int x, int y, int tile);     /* bank auto from tile */
+void bg2_stamp(int x, int y, int tile, int bank, int hflip);
+void bg2_scroll(int y);                    /* hardware vscroll (32x64 map) */
 void bg2_fill(int x, int y, int w, int h, int tile);
 void bg2_clear(void);
 void ui_icon(int x, int y, int icon);      /* icon tile on BG1, own bank */
@@ -78,6 +80,23 @@ void sfx_hit(void);          /* damage (noise) */
 void sfx_block(void);
 void sfx_bad(void);          /* error/cancel */
 void sfx_heal(void);
+
+/* ---- music: PSG tracker (ch2 pulse lead, ch3 wave bass, ch4 noise drums) ----
+   Row data = 3 bytes/row: {pulse, wave, noise}. Byte codes:
+     0 = HOLD (sustain current note), 1 = OFF (rest/silence),
+     pulse/wave  2.. = note index (0=C2), decode n = code-2
+     noise       2 = kick, 3 = snare, 4 = hat                              */
+typedef struct {
+    const u8 *rows;      /* nrows*3 bytes */
+    u16 nrows;
+    u8  ticks_per_row;   /* frames (60Hz) per row = tempo */
+    u8  loop;            /* 1 = restart at end, 0 = stop */
+} Song;
+
+void music_init(void);            /* build period tables; call once at boot */
+void music_play(const Song *s);   /* start a song from the top */
+void music_stop(void);            /* silence music channels */
+void music_tick(void);            /* advance one frame; called from vsync() */
 
 /* ---------- game ---------- */
 
