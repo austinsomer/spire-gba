@@ -332,7 +332,7 @@ kggggggggggooook
 kgggggggggoooook
 kggggggggooooook
 .kgggggggoooook.
-..kggggggoooook..
+..kggggggoooook.
 ...kkggooookk...
 .....kkkkkk.....
 ................
@@ -518,7 +518,7 @@ kwwwwkoookwwwwWk
 .kwwwwwwwwwwwWk.
 ..kwwwwwwwwwWk..
 ..kkkkkkkkkkkk..
-.koooooooooook.
+.koooooooooook..
 ..kkkkkkkkkkkk..
 ................
 
