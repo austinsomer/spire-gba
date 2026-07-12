@@ -56,6 +56,10 @@ void bg2_fill(int x, int y, int w, int h, int tile);
 void bg2_clear(void);
 void ui_icon(int x, int y, int icon);      /* icon tile on BG1, own bank */
 
+/* full-card faces on BG2: slot 0..3 (palette bank = slot, entries 4..15) */
+void card_face_load(int slot, int card_id);
+void card_face_stamp(int slot, int tx, int ty);   /* 5x7 tiles */
+
 /* 2x-scaled text on BG0 (each glyph = 2x2 tiles, synthesized) */
 void txt_put2x(int x, int y, const char *s, int clr);
 void txt2x_reset(void);

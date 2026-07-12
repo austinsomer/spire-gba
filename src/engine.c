@@ -384,6 +384,32 @@ void bg2_clear(void)
     REG_BG2VOFS = 0;
 }
 
+/* ---- full-card faces (battle hand) ----
+   tiles streamed into the charblock-1 gap (63..319), palettes into text
+   banks 0..3 entries 4..15 (text itself only uses entries 1..3) */
+#include "cardimg.h"
+#define CARDFACE_TILE0 176   /* 4 slots x 35 tiles = 176..315 */
+
+void card_face_load(int slot, int card_id)
+{
+    vu16 *dst = CHARBLOCK(1) + (CARDFACE_TILE0 + slot * CARDIMG_TILES) * 16;
+    const u32 *src = cardimg_tiles[card_id];
+    for (int i = 0; i < CARDIMG_TILES * 8; i++) {
+        dst[i * 2]     = src[i] & 0xFFFF;
+        dst[i * 2 + 1] = src[i] >> 16;
+    }
+    for (int c = 0; c < 12; c++)
+        MEM_PAL_BG[slot * 16 + 4 + c] = cardimg_pal[card_id][c];
+}
+
+void card_face_stamp(int slot, int tx, int ty)
+{
+    int t = CARDFACE_TILE0 + slot * CARDIMG_TILES;
+    for (int j = 0; j < CARDIMG_TH; j++)
+        for (int i = 0; i < CARDIMG_TW; i++)
+            bg2_stamp(tx + i, ty + j, t++, slot, 0);
+}
+
 void ui_icon(int x, int y, int icon)   /* icon = TI_* absolute tile index */
 {
     if (x < 0 || x >= 32 || y < 0 || y >= 32) return;

@@ -35,6 +35,15 @@ python3 tools/assets.py export
 - **Shared palette budget**: card art + map icons together get **15 colors total** (they share GBA palette bank 13). Current palette: near-black outline (16,24,16), creams (232,232,200 / 176,176,144 / 120,120,96), orange (224,120,24), yellow (248,200,64), gold (224,176,48), browns (96,56,24 / 144,88,40), red (176,32,32), sage backfill (136,152,120). Reusing these = free; each brand-new color eats one of the remaining slots. The importer errors if the bank overflows.
 - Fully transparent pixels render as **sage** (the inset background) — design on a sage swatch.
 
+### 2b. Full-card faces — `assets/cards/<card>.png`
+- **40x56**, full card face (frame + art + banner) shown in the battle hand.
+- One file per card, named after the card id (`strike.png`, `flamebarrier.png`, ... see `tools/mkcards.py` ORDER).
+- Auto-quantized to **12 colors** per card (k-means, 5-bit snapped) — palettes are
+  streamed per hand slot into text banks 0-3 entries 4-15, so no shared budget.
+- Alpha 0 = transparent (rounded corners show the battle backdrop).
+- Regenerate with `python3 tools/mkcards.py` → `src/cardimg.h`, then rebuild.
+  (Not part of `tools/assets.py import` — run it directly.)
+
 ### 3. Map node icons — `assets/mapicons/m_<name>.png`
 - **16x16**, same shared bank-13 palette budget as card art.
 - Files: `m_skull`, `m_elite`, `m_fire`, `m_chest`, `m_coin`, `m_question`, `m_boss`, `m_dot`.

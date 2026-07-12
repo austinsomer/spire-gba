@@ -432,7 +432,7 @@ static const u8 species_spr[N_ENEMIES] = {
 /* battle stage: player sprite left (oam 5), enemies right (oam 0..2).
    sprites stand at y=72 (feet on floor row 13). enemy i at px 128+i*36. */
 #define EN_X(i) (128 + (i) * 40)
-#define STAGE_Y 80
+#define STAGE_Y 64   /* feet+shadows end at y104 = top of the card row */
 #define OAM_PLAYER 5
 #define OAM_SHADOW0 6           /* 6..9: player + 3 enemy shadows */
 
@@ -500,8 +500,9 @@ static void draw_enemies(int cursor, int targeting)
         else if (e->mv.kind == MV_SLEEP)  txt_put(cx, iy, "ZZZ", CLR_GRAY);
         else                              ui_icon(cx + 1, iy, TI_DEBUFF);
         if (targeting && i == cursor) txt_putc(cx - 1, 7, '>', CLR_YELLOW);
-        /* mini hp bar under sprite; statuses above intent */
-        ui_bar(cx, 13, 4, e->hp, e->maxhp, CLR_RED);
+        /* mini hp bar under sprite; statuses above intent
+           (row 12: rows 13+ belong to the card faces) */
+        ui_bar(cx, 12, 4, e->hp, e->maxhp, CLR_RED);
         int sx = cx;
         if (e->block) { txt_putc(sx, 6, 'B', CLR_BLUE); sx = txt_int_at(sx+1, 6, e->block, CLR_BLUE); }
         if (e->str > 0) { txt_putc(sx, 6, 'S', CLR_RED); sx = txt_int_at(sx+1, 6, e->str, CLR_RED); }
@@ -513,7 +514,7 @@ static void draw_enemies(int cursor, int targeting)
     /* top-right framed bar + name for focused enemy */
     if (focus >= 0) {
         hp_bar_top(20, 8, en[focus].hp, en[focus].maxhp);
-        txt_put(30 - 9, 12, species[en[focus].id].name,
+        txt_put(30 - 9, 1, species[en[focus].id].name,
                 targeting ? CLR_YELLOW : CLR_WHITE);
     }
 }
@@ -543,73 +544,47 @@ static void draw_player(void)
     txt_int(xx + 1, 19, piles.ndiscard, CLR_ORANGE);
 }
 
-/* big card faces: 4 visible slots, 7 cols x 5 rows at rows 15-19 */
-static const int card_frame_clr[4] = {CLR_RED, CLR_GREEN, CLR_CYAN, CLR_GRAY};
-
-static int card_art(const Card *cd)
-{
-    switch (cd->type) {
-    case CT_ATTACK: return TB_ART_STRIKE;
-    case CT_POWER:  return TB_ART_POWER;
-    case CT_STATUS: return TB_ART_STATUS;
-    default:        return cd->block ? TB_ART_DEFEND : TB_ART_SKILL;
-    }
-}
+/* big card faces: 4 visible slots, 40x56 art (5x7 tiles) streamed onto BG2
+   at cols 4/10/16/22, rows 13-19 */
+static u8 face_loaded[4];   /* card id + 1 per slot, 0 = none */
 
 static void draw_hand(int sel)
 {
-    char nb[16];
     int top = 0;
     if (sel >= 4) top = sel - 3;
     for (int s = 0; s < 4 && top + s < piles.nhand; s++) {
-        int i = top + s, x = 2 + s * 7;
+        int i = top + s, x = 4 + s * 6;
         CardInst c = piles.hand[i];
         const Card *cd = &cards[c.id];
         int hi = (i == sel);
         int can = card_cost(c) <= pl.energy && cd->sp != SP_UNPLAYABLE;
         if (cd->cost == COST_X) can = 1;
-        int fr = hi ? CLR_YELLOW : (can ? card_frame_clr[cd->type] : CLR_GRAY);
-        ui_box(x, 15, 7, 5, fr);
-        /* face fill (panel of frame color) + banner; leave a 2x2 window
-           at the art cells so the BG2 illustration shows through */
-        for (int cy = 16; cy <= 18; cy++)
-            for (int cx = x + 1; cx <= x + 5; cx++) {
-                if (cy >= 16 && cy <= 17 && cx >= x + 2 && cx <= x + 3) {
-                    ui_tile(cx, cy, 0, 0);   /* clear ui_box interior fill
-                                                so BG2 card art shows */
-                    continue;
-                }
-                ui_fill(cx, cy, 1, 1, T_PANEL,
-                        can ? card_frame_clr[cd->type] : CLR_GRAY);
-            }
-        ui_fill(x + 1, 15, 5, 1, T_PANEL, hi ? CLR_BLUE : CLR_GRAY);
-        /* name (5 chars) on banner */
-        card_name(c, nb);
-        for (int k = 0; k < 5 && nb[k]; k++)
-            txt_putc(x + 1 + k, 15, nb[k],
-                     hi ? CLR_WHITE : (c.up ? CLR_GREEN : CLR_WHITE));
-        /* cost orb top-left corner */
-        ui_tile(x, 15, T_ENERGY, CLR_YELLOW);
-        if (cd->cost == COST_X) txt_putc(x, 15, 'X', CLR_WHITE);
-        else txt_int(x, 15, card_cost(c), can ? CLR_WHITE : CLR_DKRED);
-        /* 16x16 art centered on face (BG2 stamp over battle bg) */
-        {
-            int a = card_art(cd);
-            bg2_stamp(x + 2, 16, a,     13, 0);
-            bg2_stamp(x + 3, 16, a + 1, 13, 0);
-            bg2_stamp(x + 2, 17, a + 2, 13, 0);
-            bg2_stamp(x + 3, 17, a + 3, 13, 0);
+        if (face_loaded[s] != c.id + 1) {
+            card_face_load(s, c.id);
+            face_loaded[s] = c.id + 1;
         }
-        /* dmg/blk bottom row of face */
+        card_face_stamp(s, x, 13);
+        if (hi) {
+            ui_box(x, 13, 5, 7, CLR_YELLOW);
+            for (int cy = 14; cy <= 18; cy++)   /* drop box fill: art shows */
+                for (int cx = x + 1; cx <= x + 3; cx++)
+                    ui_tile(cx, cy, 0, 0);
+        }
+        /* live cost orb over the baked one (upgrade/energy aware) */
+        ui_tile(x, 13, T_ENERGY, CLR_YELLOW);
+        if (cd->cost == COST_X) txt_putc(x, 13, 'X', CLR_WHITE);
+        else txt_int(x, 13, card_cost(c), can ? CLR_WHITE : CLR_DKRED);
+        if (c.up) txt_putc(x + 4, 13, '+', CLR_GREEN);
+        /* live dmg/blk in the text box of the face */
         if (card_dmg(c) || cd->sp == SP_BODYSLAM) {
             int d = cd->sp == SP_BODYSLAM ? pl.block
                   : card_dmg(c) + (cd->sp == SP_HEAVYBLADE ? pl.str * card_spval(c) : pl.str);
-            txt_int(x + 3, 18, d, CLR_WHITE);
-        } else if (card_block(c)) txt_int(x + 3, 18, card_block(c), CLR_WHITE);
+            txt_int(x + 2, 18, d, CLR_WHITE);
+        } else if (card_block(c)) txt_int(x + 2, 18, card_block(c), CLR_WHITE);
     }
     if (piles.nhand == 0) txt_put(12, 17, "NO CARDS", CLR_GRAY);
-    if (top > 0) txt_putc(1, 17, '<', CLR_YELLOW);
-    if (top + 4 < piles.nhand) txt_putc(29, 17, '>', CLR_YELLOW);
+    if (top > 0) txt_putc(3, 16, '<', CLR_YELLOW);
+    if (top + 4 < piles.nhand) txt_putc(27, 16, '>', CLR_YELLOW);
 }
 
 static void draw_all(int sel, int cursor, int targeting)
@@ -619,14 +594,15 @@ static void draw_all(int sel, int cursor, int targeting)
     draw_enemies(cursor, targeting);
     draw_player();
     draw_hand(sel);
-    /* row 13: selected card full name + desc, left side */
+    /* row 12 left: selected card full name (cards own rows 13-19) */
     if (piles.nhand > 0 && sel < piles.nhand) {
         char nb[16];
         card_name(piles.hand[sel], nb);
         txt_put(0, 12, nb, CLR_WHITE);
     }
-    txt_put(0, 19, targeting ? "A:GO B:NO" : "", CLR_GRAY);
-    txt_put(24, 19, "R:END", CLR_GRAY);
+    /* hints top-center, between the two hp bars */
+    if (targeting) txt_put(11, 0, "A:GO B:NO", CLR_GRAY);
+    else           txt_put(12, 0, "R:END", CLR_GRAY);
 }
 
 /* ---------- start / end of turn ---------- */
@@ -667,6 +643,7 @@ static void end_enemy_turn(void)
 void combat_screen(int encounter)
 {
     battle_bg_load();
+    for (int i = 0; i < 4; i++) face_loaded[i] = 0;   /* cb1 was reloaded */
     scene_battle();
     setup_encounter(encounter);
     piles_init();
