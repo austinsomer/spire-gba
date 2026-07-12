@@ -22,3 +22,10 @@ void *memset(void *dst, int c, unsigned n)
     while (n--) *d++ = (u8)c;
     return dst;
 }
+
+unsigned strlen(const char *s)
+{
+    unsigned n = 0;
+    while (s[n]) n++;
+    return n;
+}

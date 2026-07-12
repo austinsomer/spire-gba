@@ -1,6 +1,18 @@
 /* BG2 scene composers — dungeon backdrops per screen */
 #include "game.h"
 #include "bgtiles.h"
+#include "battlebg.h"
+
+/* battle bg image: tiles live at BATTLEBG_BASE (spans cb1 free space into
+   cb2). mode-4 title clobbers both, so reload per combat entry. */
+void battle_bg_load(void)
+{
+    vu16 *dst = CHARBLOCK(1) + BATTLEBG_BASE * 16;
+    const u16 *src = (const u16 *)battlebg_tiles;
+    for (u32 i = 0; i < sizeof(battlebg_tiles) / 2; i++) dst[i] = src[i];
+    for (int c = 0; c < 11; c++)
+        MEM_PAL_BG[BATTLEBG_BANK * 16 + 4 + c] = battlebg_pal[c];
+}
 
 /* brick wall with pillar/torch rhythm + arch windows */
 static void wall(int y0, int y1)
@@ -28,9 +40,10 @@ static void ground(int y0, int y1)
 void scene_battle(void)
 {
     bg2_clear();
-    wall(1, 10);
-    ground(11, 13);
-    /* rows 0 and 14-19 stay backdrop-dark for HUD + hand */
+    for (int y = 0; y < 20; y++)
+        for (int x = 0; x < 30; x++)
+            bg2_stamp(x, y, BATTLEBG_BASE + battlebg_map[y * 30 + x],
+                      BATTLEBG_BANK, 0);
 }
 
 void scene_title(void)

@@ -65,6 +65,8 @@ int main(void)
     music_play(&song_sts);
 #ifdef MAPTEST
     rng_seed(7); run_new(); gstate = ST_MAP;   /* skip title for map peek */
+#elif defined(BATTLETEST)
+    rng_seed(7); run_new(); map_pending_encounter = 1; gstate = ST_COMBAT;
 #else
     gstate = ST_TITLE;
 #endif

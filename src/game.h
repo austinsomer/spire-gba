@@ -61,6 +61,7 @@ void txt_put2x(int x, int y, const char *s, int clr);
 void txt2x_reset(void);
 
 /* scene composers (src/scene.c) */
+void battle_bg_load(void);   /* image tiles -> vram; call at combat entry */
 void scene_battle(void);
 void scene_title(void);
 void scene_map(void);

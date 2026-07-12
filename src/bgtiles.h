@@ -46,7 +46,27 @@ enum {  /* charblock 1 tile indices (tile 0 = blank) */
     TB_M_DOT_TR = 40,
     TB_M_DOT_BL = 41,
     TB_M_DOT_BR = 42,
-    N_BGTILES = 43
+    TB_ART_STRIKE = 43,
+    TB_ART_STRIKE_TR = 44,
+    TB_ART_STRIKE_BL = 45,
+    TB_ART_STRIKE_BR = 46,
+    TB_ART_DEFEND = 47,
+    TB_ART_DEFEND_TR = 48,
+    TB_ART_DEFEND_BL = 49,
+    TB_ART_DEFEND_BR = 50,
+    TB_ART_POWER = 51,
+    TB_ART_POWER_TR = 52,
+    TB_ART_POWER_BL = 53,
+    TB_ART_POWER_BR = 54,
+    TB_ART_SKILL = 55,
+    TB_ART_SKILL_TR = 56,
+    TB_ART_SKILL_BL = 57,
+    TB_ART_SKILL_BR = 58,
+    TB_ART_STATUS = 59,
+    TB_ART_STATUS_TR = 60,
+    TB_ART_STATUS_BL = 61,
+    TB_ART_STATUS_BR = 62,
+    N_BGTILES = 63
 };
 
 #define ICON_BASE 160  /* charblock 0 */
@@ -58,14 +78,18 @@ enum {
     TI_COIN = ICON_BASE + 4,
     TI_QUESTION = ICON_BASE + 5,
     TI_BOSS = ICON_BASE + 6,
-    N_ICONS = 7
+    TI_ATK = ICON_BASE + 7,
+    TI_DEF = ICON_BASE + 8,
+    TI_BUFF = ICON_BASE + 9,
+    TI_DEBUFF = ICON_BASE + 10,
+    N_ICONS = 11
 };
 
-static const u8 bg_tile_bank[N_BGTILES] = { 0, 10, 10, 10, 10, 10, 10, 10, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13 };
-static const u8 icon_bank[N_ICONS > 0 ? N_ICONS : 1] = { 11, 11, 11, 11, 11, 11, 11 };
+static const u8 bg_tile_bank[N_BGTILES] = { 0, 10, 10, 10, 10, 10, 10, 10, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13 };
+static const u8 icon_bank[N_ICONS > 0 ? N_ICONS : 1] = { 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11 };
 
 #ifdef BGTILES_DATA  /* define in exactly one TU (engine.c) */
-static const u32 bgtile_px[336] = {
+static const u32 bgtile_px[496] = {
     0x66165666,0x55153555,0x35155553,0x11111111,0x66566616,0x53555515,0x35555513,0x11111111, /* brick */
     0x44143444,0x33133333,0x33131333,0x11111111,0x44344414,0x33333313,0x33313313,0x11111111, /* brickdark */
     0x47777787,0x47797777,0x47877777,0x47777797,0x47787777,0x49777777,0x47797787,0x44444444, /* floor */
@@ -108,8 +132,28 @@ static const u32 bgtile_px[336] = {
     0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbb1,0xbbbbbb12,0xbbbbb122, /* m_dot_tr */
     0x321bbbbb,0x31bbbbbb,0x1bbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb, /* m_dot_bl */
     0xbbbbb123,0xbbbbbb13,0xbbbbbbb1,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb, /* m_dot_br */
+    0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0x5bbbbbbb,0xb6bbbbbb,0x1b5bbbbb,0x21bbbbbb, /* art_strike */
+    0x121bbbbb,0x1321bbbb,0xb1321bbb,0xbb1321b5,0xb5b1321b,0xbb5b1321,0xbbb5b132,0xbbbb5b13, /* art_strike_tr */
+    0x321bbbbb,0x1321bbbb,0xb1321bbb,0x1777771b,0xbb1881bb,0xbbb1881b,0xbbbb171b,0xbbbbbbbb, /* art_strike_bl */
+    0xbbbbb5b1,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb,0xbbbbbbbb, /* art_strike_br */
+    0x11111bbb,0x222221bb,0x2222221b,0x2222221b,0x88818891,0x88888891,0x22222221,0x22222221, /* art_defend */
+    0xbbb11111,0xbb132222,0xb1332222,0xb1332222,0x13888818,0x13888888,0x13332222,0x13332222, /* art_defend_tr */
+    0x2222221b,0x222221bb,0x22221bbb,0x2221bbbb,0x221bbbbb,0x21bbbbbb,0x1bbbbbbb,0xbbbbbbbb, /* art_defend_bl */
+    0xb1333222,0xbb133322,0xbbb13332,0xbbbb1332,0xbbbbb133,0xbbbbbb13,0xbbbbbbb1,0xbbbbbbbb, /* art_defend_br */
+    0x1bbbbbbb,0x61bbbbbb,0x61bbbbbb,0x661bbbbb,0x661bbbbb,0x266111bb,0x26666661,0x26666651, /* art_power */
+    0xbbbbbbb1,0xbbbbbb16,0xbbbbbb16,0xbbbbb166,0xbbbbb166,0xbb111662,0x16666662,0x15666662, /* art_power_tr */
+    0x265111bb,0x651bbbbb,0x51bbbbbb,0x1bbbbbbb,0xbbb5bbbb,0xb5bbbbbb,0xbbbbbbbb,0xbbbbbbbb, /* art_power_bl */
+    0xbb111562,0xbbbbb156,0xbbbbbb15,0xbbbbbbb1,0xbbbb5bbb,0xbbbbbb5b,0xbbbbbbbb,0xbbbbbbbb, /* art_power_br */
+    0xb11b11bb,0x1221221b,0x1221221b,0x1321321b,0x1321321b,0x2222221b,0x11222221,0x55122221, /* art_skill */
+    0xbbb11b11,0xbb122122,0xbb122122,0xbb132132,0xbb132132,0xb1222222,0x13222221,0x13222215, /* art_skill_tr */
+    0x55122221,0x1122221b,0x2222221b,0x222221bb,0x111111bb,0x5555551b,0x111111bb,0xbbbbbbbb, /* art_skill_bl */
+    0x13222215,0xb1322221,0xb1322222,0xbb132222,0xbb111111,0xbb155555,0xbb111111,0xbbbbbbbb, /* art_skill_br */
+    0xbbbbbbbb,0x1111bbbb,0x333311bb,0x3333331b,0x3333331b,0x33344331,0x33444431,0x33444431, /* art_status */
+    0xbbbbbbbb,0xbbbbbbbb,0xbbbbbb11,0xbbbb1133,0xbb113333,0xb1333333,0x13333343,0x13343333, /* art_status_tr */
+    0x33344331,0x4333331b,0x4333331b,0x333311bb,0x11141bbb,0xbb11bbbb,0xbbbbbbbb,0xbbbbbbbb, /* art_status_bl */
+    0xb1333344,0xb1333444,0xbb133334,0xbbb11333,0xbbbbb141,0xbbbbb141,0xbbbbb11b,0xbbbbbbbb, /* art_status_br */
 };
-static const u32 icon_px[56] = {
+static const u32 icon_px[88] = {
     0x00111100,0x01222210,0x12222221,0x12122121,0x12211221,0x01322310,0x01211210,0x00111100, /* skull */
     0x31000013,0x13111131,0x01222210,0x12622621,0x12211221,0x01322310,0x01211210,0x00111100, /* elite */
     0x00055000,0x00544500,0x05424450,0x05422450,0x05444450,0x11544511,0x17711771,0x01177110, /* fire */
@@ -117,6 +161,10 @@ static const u32 icon_px[56] = {
     0x00111100,0x01442210,0x15444421,0x15444441,0x15444441,0x15555441,0x01555510,0x00111100, /* coin */
     0x01111110,0x11444411,0x14411441,0x11441111,0x11144111,0x11111111,0x11144111,0x01111110, /* question */
     0x14044041,0x14444441,0x12222221,0x16622661,0x12211221,0x13222231,0x01211210,0x00111100, /* boss */
+    0x21000000,0x32100000,0x13210000,0x01321000,0x00132810,0x00018100,0x00181710,0x00100171, /* atk */
+    0x01111110,0x13322221,0x13344221,0x13344221,0x13322221,0x01332210,0x00132100,0x00011000, /* def */
+    0x00011000,0x00144100,0x01444410,0x14444441,0x11144111,0x00144100,0x00144100,0x00111100, /* buff */
+    0x00111100,0x00166100,0x00166100,0x11166111,0x16666661,0x01666610,0x00166100,0x00011000, /* debuff */
 };
 static const u16 bgbank_pal[6][15] = {  /* banks 10..15 */
     {0x1442,0x0800,0x1c83,0x24a4,0x28c5,0x3527,0x2ce6,0x3948,0x24c5,0x0cca,0x08f4,0x0e1d,0x277f,0x0000,0x0000},

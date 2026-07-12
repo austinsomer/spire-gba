@@ -282,7 +282,7 @@ void sprites_load(void)
     vu16 *dst = (vu16 *)0x06010000;
     const u16 *src16 = (const u16 *)sprite_tiles;
     for (u32 i = 0; i < sizeof(sprite_tiles) / 2; i++) dst[i] = src16[i];
-    for (int s = 0; s < N_SPRITES; s++) {
+    for (int s = 0; s < N_SPRITE_BANKS; s++) {
         MEM_PAL_OBJ[s * 16] = 0;
         for (int c = 0; c < 15; c++)
             MEM_PAL_OBJ[s * 16 + 1 + c] = sprite_pals[s][c];
@@ -294,7 +294,8 @@ void obj_show(int i, int sprite, int x, int y)
     oam_shadow[i].attr0 = (u16)(ATTR0_Y(y) | ATTR0_SQUARE);
     oam_shadow[i].attr1 = (u16)(ATTR1_X(x) | ATTR1_SIZE(2));
     oam_shadow[i].attr2 = (u16)(ATTR2_TILE(sprite_tile_ofs[sprite]) |
-                                ATTR2_PAL(sprite) | ATTR2_PRIO(1));
+                                ATTR2_PAL(sprite_pal_bank[sprite]) |
+                                ATTR2_PRIO(2));
 }
 
 void obj_hide(int i) { oam_shadow[i].attr0 = ATTR0_HIDE; }
