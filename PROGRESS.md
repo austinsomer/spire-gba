@@ -13,7 +13,7 @@ Goal: playable .gba rom, Slay the Spire act 1, Ironclad, direct clone names (per
 - [x] Enemy sprites: 15 32x32 OBJ sprites (tools/art.txt ASCII → tools/mksprites.py → src/sprites.h). OAM shadow committed in vsync (OAM ignores writes outside vblank). VERIFIED in mGBA (slimes w/ faces render).
 - [x] FIXED: memset self-recursion — gcc pattern-matched freestanding memset body into a memset call → infinite recursion, SP underflow, wild exec. mem.o builds w/ -fno-builtin -fno-tree-loop-distribute-patterns. Found via mGBA gdb stub (-g) + raw RSP python client (no arm-gdb on box; lldb batch dies on SIGINT). Single-step SP trace nailed it.
 - [x] Makefile: header deps now tracked ($(HDRS)) — stale engine.o w/ old sprites.h cost a debug cycle.
-- [ ] Task 5: final long monkey soak, then ship-build boot check + final screenshots
+- [x] Task 5: 6+ min monkey soak clean (deep runs, shop/relics cycling, sprites across species), ship build boots to title. GAME COMPLETE — polish/refinement phase next.
 
 ## Design decisions
 - Player: Ironclad 80 HP, 3 energy, draw 5. Statuses: Wound/Burn/Slimed/Dazed.
