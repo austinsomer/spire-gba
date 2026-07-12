@@ -307,6 +307,8 @@ static void banner(void)
 
 void map_screen(void)
 {
+    /* mode-4 title clobbers charblock 1 — always rebuild pattern tiles */
+    map_tiles_ready = 0;
 #ifdef MAPTEST
     /* pre-walk 6 floors so visited/solid-path rendering is inspectable */
     if (run.floor == 0)
