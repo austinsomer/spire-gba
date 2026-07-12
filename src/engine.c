@@ -309,7 +309,9 @@ void obj_hide_all(void)
 
 void bg2_load(void)
 {
-    /* scenery tiles -> charblock 1 (tile 0 left blank) */
+    /* tile 0 must be blank (mode-4 title clobbers charblock 1) */
+    for (int i = 0; i < 16; i++) CHARBLOCK(1)[i] = 0;
+    /* scenery tiles -> charblock 1 */
     for (int t = 1; t < N_BGTILES; t++) {
         vu16 *dst = CHARBLOCK(1) + t * 16;
         const u32 *src = &bgtile_px[(t - 1) * 8];
@@ -365,6 +367,12 @@ void ui_icon(int x, int y, int icon)   /* icon = TI_* absolute tile index */
 #define BIG_BASE 200
 static u8 big_cached[128];
 static int big_next = 1;   /* slot 0 reserved so cache 0 = miss */
+
+void txt2x_reset(void)     /* call after anything clobbers charblock 0 */
+{
+    for (int i = 0; i < 128; i++) big_cached[i] = 0;
+    big_next = 1;
+}
 
 static int big_glyph(char c)
 {

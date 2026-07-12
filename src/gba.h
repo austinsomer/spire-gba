@@ -30,6 +30,7 @@ typedef volatile u32 vu32;
 #define REG_BG2VOFS     REG(0x0400001A)
 
 #define DCNT_MODE0      0x0000
+#define DCNT_MODE4      0x0004
 #define DCNT_BG0        0x0100
 #define DCNT_BG1        0x0200
 #define DCNT_BG2        0x0400

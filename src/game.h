@@ -56,6 +56,7 @@ void ui_icon(int x, int y, int icon);      /* icon tile on BG1, own bank */
 
 /* 2x-scaled text on BG0 (each glyph = 2x2 tiles, synthesized) */
 void txt_put2x(int x, int y, const char *s, int clr);
+void txt2x_reset(void);
 
 /* scene composers (src/scene.c) */
 void scene_battle(void);

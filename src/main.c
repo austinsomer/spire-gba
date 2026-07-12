@@ -22,40 +22,36 @@ void deck_add(u8 card_id)
     }
 }
 
+#include "title_img.h"
+
 void title_screen(void)
 {
-    txt_clear(); ui_clear();
-    scene_title();
-
-    /* logo panel over the wall */
-    ui_fill(3, 2, 24, 7, T_PANEL, CLR_GRAY);
-    ui_box(2, 1, 26, 9, CLR_DKRED);
-    txt_put2x(7, 2, "SLAY THE", CLR_YELLOW);
-    txt_put2x(10, 4, "SPIRE", CLR_YELLOW);
-    txt_put(10, 8, "GBA DEMAKE", CLR_GRAY);
-
-    /* heroes flanking the menu, standing on the floor */
-    obj_show(0, SPR_IRONCLAD, 32, 104);
-    obj_show(1, SPR_CULTIST, 176, 104);
-
-    txt_put(10, 13, "> NEW GAME", CLR_WHITE);
-    txt_put(8, 18, "IRONCLAD - ACT I", CLR_ORANGE);
-
-    int blink = 0;
-    for (;;) {
-        vsync(); key_poll();
-        blink++;
-        if ((blink & 31) == 0)
-            txt_put(10, 13, (blink & 32) ? "  NEW GAME" : "> NEW GAME", CLR_WHITE);
-        if (key_hit(KEY_START | KEY_A)) {
-            rng_seed(frame_count * 2654435761u + 12345);
-            sfx_ok();
-            obj_hide_all();
-            run_new();
-            gstate = ST_MAP;
-            return;
-        }
+    /* full-screen mode-4 bitmap title (charblocks 0-2 clobbered) */
+    obj_hide_all();
+    vsync();
+    REG_DISPCNT = DCNT_MODE4 | DCNT_BG2;
+    for (int i = 0; i < 256; i++) MEM_PAL_BG[i] = title_pal[i];
+    {
+        vu16 *v = MEM_VRAM;
+        for (int i = 0; i < 240 * 160 / 2; i++) v[i] = title_px[i];
     }
+
+    for (int blink = 0;; blink++) {
+        vsync(); key_poll();
+        MEM_PAL_BG[TITLE_ARROW_PALIDX] =
+            (blink & 32) ? TITLE_ARROW_OFF : TITLE_ARROW_ON;
+        if (key_hit(KEY_START | KEY_A)) break;
+    }
+    rng_seed(frame_count * 2654435761u + 12345);
+    sfx_ok();
+
+    /* restore tiled video state */
+    video_init();
+    sprites_load();
+    bg2_load();
+    txt2x_reset();
+    run_new();
+    gstate = ST_MAP;
 }
 
 int main(void)
