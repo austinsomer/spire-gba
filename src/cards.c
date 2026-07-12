@@ -169,6 +169,7 @@ static const int type_clr[] = {CLR_RED, CLR_GREEN, CLR_CYAN, CLR_GRAY};
 int deck_browse(const char *title, int pick_mode)
 {
     if (run.ndeck == 0) return -1;
+    scene_none();
     int sel = 0, top = 0;
     const int ROWS = 14;
     char nb[16];

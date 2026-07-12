@@ -1,4 +1,5 @@
 #include "cards.h"
+#include "sprites.h"
 
 /* ---------- relics ---------- */
 
@@ -115,6 +116,7 @@ static int card_choice(void)
 
 void reward_screen(int elite)
 {
+    scene_none();
     int gold = elite ? 25 + rng_range(11) : 10 + rng_range(11);
     int got_gold = 0, got_card = 0, got_relic = !elite;
     u8 relic = elite ? relic_random() : 0xFF;
@@ -151,6 +153,7 @@ void reward_screen(int elite)
 
 void rest_screen(void)
 {
+    scene_none();
     header("REST SITE", CLR_ORANGE);
     txt_put(3, 3, "THE FIRE CRACKLES...", CLR_GRAY);
     static const char *const items[] = {"REST  (HEAL 30%)", "SMITH (UPGRADE)", "LEAVE"};
@@ -174,6 +177,7 @@ void rest_screen(void)
 
 void treasure_screen(void)
 {
+    scene_none();
     header("TREASURE!", CLR_GREEN);
     u8 r = relic_random();
     int gold = 20 + rng_range(16);
@@ -191,6 +195,8 @@ void treasure_screen(void)
 
 void shop_screen(void)
 {
+    scene_shop();
+    obj_show(6, SPR_LOOTER, 200, 128);
     u8 ids[5]; s16 price[5]; u8 sold[5] = {0};
     for (int i = 0; i < 5; i++) {
         int id;
@@ -210,6 +216,7 @@ void shop_screen(void)
 
     for (;;) {
         header("SHOP", CLR_YELLOW);
+        ui_fill(0, 2, 30, 9, T_PANEL, CLR_GRAY);
         /* rows: 5 cards, relic, remove, leave */
         for (int i = 0; i < 5; i++) {
             int y = 2 + i;
@@ -220,8 +227,9 @@ void shop_screen(void)
             if (sold[i]) { txt_put(2, y, "SOLD OUT", CLR_GRAY); continue; }
             txt_put(2, y, card_name(ci, nb), can ? CLR_WHITE : CLR_GRAY);
             txt_int(17, y, price[i], can ? CLR_YELLOW : CLR_DKRED);
-            txt_put(22, y, cards[ids[i]].desc, CLR_GRAY);
         }
+        if (sel < 5 && !sold[sel])
+            txt_put(1, 18, cards[ids[sel]].desc, CLR_GRAY);
         int y = 8;
         if (sel == 5) ui_fill(0, y, 30, 1, T_PANEL, CLR_BLUE);
         txt_putc(0, y, sel == 5 ? '>' : ' ', CLR_YELLOW);
@@ -245,7 +253,7 @@ void shop_screen(void)
             vsync(); key_poll();
             if (key_repeat(KEY_UP) && sel > 0)   { sel--; sfx_blip(); break; }
             if (key_repeat(KEY_DOWN) && sel < 7) { sel++; sfx_blip(); break; }
-            if (key_hit(KEY_B)) { gstate = ST_MAP; return; }
+            if (key_hit(KEY_B)) { obj_hide_all(); gstate = ST_MAP; return; }
             if (key_hit(KEY_A)) {
                 if (sel < 5 && !sold[sel] && run.gold >= price[sel]) {
                     run.gold -= price[sel]; deck_add(ids[sel]); sold[sel] = 1; sfx_ok();
@@ -253,8 +261,9 @@ void shop_screen(void)
                     run.gold -= rprice; relic_add(relic); rsold = 1; sfx_ok();
                 } else if (sel == 6 && !removed && run.gold >= 75) {
                     int i = deck_browse("REMOVE WHICH?", 1);
+                    scene_shop();
                     if (i >= 0) { run.gold -= 75; deck_remove(i); removed = 1; sfx_ok(); }
-                } else if (sel == 7) { gstate = ST_MAP; return; }
+                } else if (sel == 7) { obj_hide_all(); gstate = ST_MAP; return; }
                 else sfx_bad();
                 break;
             }
@@ -266,6 +275,7 @@ void shop_screen(void)
 
 void event_screen(void)
 {
+    scene_none();
     int ev = rng_range(4);
     for (;;) {
         switch (ev) {
@@ -325,8 +335,9 @@ void event_screen(void)
 void gameover_screen(void)
 {
     txt_clear(); ui_clear();
+    scene_none();
     ui_box(4, 5, 22, 8, CLR_DKRED);
-    txt_put(10, 7, "YOU DIED", CLR_RED);
+    txt_put2x(7, 6, "YOU DIED", CLR_RED);
     txt_put(8, 9, "FLOOR", CLR_GRAY); txt_int(14, 9, run.floor, CLR_WHITE);
     txt_put(8, 11, "PRESS START", CLR_GRAY);
     sfx_bad();
@@ -339,8 +350,9 @@ void gameover_screen(void)
 void victory_screen(void)
 {
     txt_clear(); ui_clear();
+    scene_none();
     ui_box(3, 4, 24, 10, CLR_YELLOW);
-    txt_put(8, 6, "ACT 1 CLEAR!", CLR_YELLOW);
+    txt_put2x(4, 5, "ACT 1 CLEAR", CLR_YELLOW);
     txt_put(6, 8, "THE SPIRE AWAITS...", CLR_GRAY);
     ui_tile(8, 10, T_HEART, CLR_RED);
     int xx = txt_int_at(10, 10, run.hp, CLR_WHITE);

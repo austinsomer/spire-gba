@@ -1,5 +1,6 @@
 #include "game.h"
 #include "cards.h"
+#include "sprites.h"
 
 Run run;
 GState gstate;
@@ -24,21 +25,32 @@ void deck_add(u8 card_id)
 void title_screen(void)
 {
     txt_clear(); ui_clear();
-    ui_box(3, 3, 24, 7, CLR_RED);
-    txt_put(8, 5, "SLAY THE SPIRE", CLR_RED);
-    txt_put(11, 7, "GBA DEMAKE", CLR_GRAY);
-    txt_put(9, 13, "PRESS START", CLR_WHITE);
-    txt_put(7, 17, "IRONCLAD - ACT I", CLR_ORANGE);
+    scene_title();
+
+    /* logo panel over the wall */
+    ui_fill(3, 2, 24, 7, T_PANEL, CLR_GRAY);
+    ui_box(2, 1, 26, 9, CLR_DKRED);
+    txt_put2x(7, 2, "SLAY THE", CLR_YELLOW);
+    txt_put2x(10, 4, "SPIRE", CLR_YELLOW);
+    txt_put(10, 8, "GBA DEMAKE", CLR_GRAY);
+
+    /* heroes flanking the menu, standing on the floor */
+    obj_show(0, SPR_IRONCLAD, 32, 104);
+    obj_show(1, SPR_CULTIST, 176, 104);
+
+    txt_put(10, 13, "> NEW GAME", CLR_WHITE);
+    txt_put(8, 18, "IRONCLAD - ACT I", CLR_ORANGE);
 
     int blink = 0;
     for (;;) {
         vsync(); key_poll();
         blink++;
         if ((blink & 31) == 0)
-            txt_put(9, 13, (blink & 32) ? "           " : "PRESS START", CLR_WHITE);
+            txt_put(10, 13, (blink & 32) ? "  NEW GAME" : "> NEW GAME", CLR_WHITE);
         if (key_hit(KEY_START | KEY_A)) {
             rng_seed(frame_count * 2654435761u + 12345);
             sfx_ok();
+            obj_hide_all();
             run_new();
             gstate = ST_MAP;
             return;

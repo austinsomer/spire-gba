@@ -57,6 +57,13 @@ void ui_icon(int x, int y, int icon);      /* icon tile on BG1, own bank */
 /* 2x-scaled text on BG0 (each glyph = 2x2 tiles, synthesized) */
 void txt_put2x(int x, int y, const char *s, int clr);
 
+/* scene composers (src/scene.c) */
+void scene_battle(void);
+void scene_title(void);
+void scene_map(void);
+void scene_shop(void);
+void scene_none(void);
+
 /* obj sprites (32x32, ids in sprites.h enum) */
 void sprites_load(void);
 void obj_show(int oam_i, int sprite, int x, int y);

@@ -1,4 +1,5 @@
 #include "cards.h"
+#include "bgtiles.h"
 
 /* 7 cols x 15 floors, StS act 1 style */
 #define MCOLS 7
@@ -62,9 +63,18 @@ static int pick_monster(void)
 }
 static int pick_elite(void) { return 7 + rng_range(3); }
 
-static const char room_ch[] = {' ', 'M', 'E', '?', 'R', '$', 'T', 'B'};
-static const int  room_clr[] = {CLR_GRAY, CLR_WHITE, CLR_RED, CLR_CYAN,
-                                CLR_ORANGE, CLR_YELLOW, CLR_GREEN, CLR_DKRED};
+static u16 room_icon(int room)
+{
+    switch (room) {
+    case ROOM_MONSTER:  return TI_SKULL;
+    case ROOM_ELITE:    return TI_ELITE;
+    case ROOM_EVENT:    return TI_QUESTION;
+    case ROOM_REST:     return TI_FIRE;
+    case ROOM_SHOP:     return TI_COIN;
+    case ROOM_TREASURE: return TI_CHEST;
+    default:            return TI_BOSS;
+    }
+}
 
 static void route_room(int room)
 {
@@ -103,6 +113,8 @@ void map_screen(void)
     /* boss floor */
     if (run.floor >= MFLOORS) {
         txt_clear(); ui_clear();
+        scene_map();
+        ui_fill(5, 7, 20, 4, T_PANEL, CLR_GRAY);
         ui_box(4, 6, 22, 6, CLR_DKRED);
         txt_put(9, 8, "BOSS AHEAD", CLR_RED);
         txt_put(7, 9, "PRESS A TO FIGHT", CLR_WHITE);
@@ -121,9 +133,11 @@ void map_screen(void)
         sel = run.mapcol;
     }
 
+    scene_map();
     for (;;) {
         txt_clear(); ui_clear();
-        /* header */
+        /* header strip */
+        ui_fill(0, 0, 30, 1, T_PANEL, CLR_GRAY);
         ui_tile(0, 0, T_HEART, CLR_RED);
         int xx = txt_int_at(2, 0, run.hp, CLR_WHITE);
         txt_putc(xx, 0, '/', CLR_GRAY); txt_int(xx + 1, 0, run.maxhp, CLR_GRAY);
@@ -131,7 +145,8 @@ void map_screen(void)
         txt_int(14, 0, run.gold, CLR_YELLOW);
         txt_put(20, 0, "FLR", CLR_GRAY); txt_int(24, 0, run.floor + 1, CLR_WHITE);
 
-        txt_put(12, 1, "BOSS", CLR_DKRED);
+        ui_icon(13, 1, TI_BOSS);
+        txt_put(15, 1, "BOSS", CLR_DKRED);
         /* nodes: floor 14 top y=2 .. floor 0 y=16 */
         for (int f = 0; f < MFLOORS; f++) {
             int y = 16 - f;
@@ -140,17 +155,25 @@ void map_screen(void)
                 int x = 1 + c * 4;
                 int done = (f < run.floor);
                 int here = (f == run.floor && reachable(f, c));
-                int clr = done ? CLR_GRAY : room_clr[mnode[f][c].room];
                 if (here && c == sel) {
                     ui_fill(x - 1, y, 3, 1, T_PANEL, CLR_BLUE);
                     txt_putc(x - 1, y, '>', CLR_YELLOW);
                 }
-                txt_putc(x, y, room_ch[mnode[f][c].room],
-                         (here && c == sel) ? CLR_YELLOW : clr);
+                if (done)
+                    ui_tile(x, y, T_DOT, CLR_GRAY);
+                else
+                    ui_icon(x, y, room_icon(mnode[f][c].room));
             }
         }
-        txt_put(0, 18, "M:FOE E:ELITE ?:EVT R:REST", CLR_GRAY);
-        txt_put(0, 19, "$:SHOP T:CHEST  SEL:DECK", CLR_GRAY);
+        /* legend */
+        ui_fill(0, 18, 30, 2, T_PANEL, CLR_GRAY);
+        ui_icon(0, 18, TI_SKULL);  txt_put(1, 18, ":FOE", CLR_GRAY);
+        ui_icon(6, 18, TI_ELITE);  txt_put(7, 18, ":ELITE", CLR_GRAY);
+        ui_icon(14, 18, TI_QUESTION); txt_put(15, 18, ":EVENT", CLR_GRAY);
+        ui_icon(22, 18, TI_FIRE);  txt_put(23, 18, ":REST", CLR_GRAY);
+        ui_icon(0, 19, TI_COIN);   txt_put(1, 19, ":SHOP", CLR_GRAY);
+        ui_icon(7, 19, TI_CHEST);  txt_put(8, 19, ":LOOT", CLR_GRAY);
+        txt_put(16, 19, "SELECT:DECK", CLR_GRAY);
 
         for (;;) {
             vsync(); key_poll();

@@ -3,67 +3,184 @@
 # See tools/mkbg.py header for format. Palette banks 10-15, RGB 0..31.
 # '.' = transparent (backdrop shows through; backdrop is near-black blue).
 
+# ---- bank 10: dungeon stone, arch void, torch fire -------------------
 !bank 10 dungeon
-=k 1 1 3
-=s 4 4 7
-=S 6 6 10
-=m 3 3 6
-=f 5 4 6
-=F 7 6 9
+=k 2 2 5
+=x 0 0 2
+=d 3 4 7
+=m 4 5 9
+=s 5 6 10
+=S 7 9 13
+=f 6 7 11
+=F 8 10 14
+=g 5 6 9
+=b 10 6 3
+=r 20 7 2
+=o 29 16 3
+=y 31 27 9
 
+# blue-gray brick, running bond: mortar rows 3/7, head joints x5 / x1.
+# wraps both axes when tiled.
 @brick 10
-sssssssk
-sSsssssk
-sssssssk
+SSSsSkSS
+sssdskss
+dssssksd
 kkkkkkkk
-ssskssss
-sSskssss
-ssskssss
+SkSSSsSS
+skssssds
+dksssssd
 kkkkkkkk
 
+# darker wall variant for shadowed columns / depth
 @brickdark 10
-mmmmmmmk
-mmmmmmmk
-mmmmmmmk
+mmmdmkmm
+dddddkdd
+dddkdkdd
 kkkkkkkk
-mmmkmmmm
-mmmkmmmm
-mmmkmmmm
+mkmmmdmm
+dkdddddd
+dkddkddd
 kkkkkkkk
 
+# floor slab: seam col7/row7, sparse speckle; lighter than wall
 @floor 10
-ffffffff
-fFffffff
-ffffffff
-ffffffff
-ffffFfff
-ffffffff
-ffffffff
-ffffffff
+fFfffffm
+ffffgffm
+fffffFfm
+fgfffffm
+ffffFffm
+ffffffgm
+fFffgffm
+mmmmmmmm
 
+# floor shadow variant, same seam lines so it blends with @floor
+@floordark 10
+mmmdmmmd
+mmmmmmmd
+mdmmmmmd
+mmmmmdmd
+mmmmmmmd
+mmdmmmmd
+mmmmmmmd
+dddddddd
+
+# arched window niche: near-black opening in stone frame
+@arch 10
+sSkkkkSs
+sskxxkss
+skxxxxks
+skxxxxks
+skxxxxks
+skxxxxks
+sskxxkss
+kkkkkkkk
+
+# pillar strip: lit left edge, shaded right; tiles vertically
+@pillar 10
+kSsssmdk
+kSsssmdk
+kSsssmdk
+kSsssmdk
+kSsssmdk
+kSsssmdk
+kSsssmdk
+kddddddk
+
+# wall torch on dark stone (bg matches @brickdark base, mortar row 3/7)
+@torch 10
+dddyyddd
+ddoyyodd
+ddoyyodd
+kkdrrdkk
+dddbbddd
+dddbbddd
+ddbbbbdd
+kkkkkkkk
+
+# ---- bank 11: map node icons -----------------------------------------
 !bank 11 icons
-=w 28 28 26
-=k 2 2 2
-=o 28 16 4
-=y 30 26 8
-=r 24 6 6
+=k 1 1 2
+=w 29 29 26
+=W 21 21 17
+=y 31 26 7
+=o 28 15 3
+=r 25 5 4
+=b 12 7 3
+=B 18 11 5
 
+# monster: small bone skull
 @icon:skull 11
-..wwww..
-.wwwwww.
-.wkwwkw.
-.wwwwww.
-..wwww..
-..w.w.w.
-..wwww..
-........
+..kkkk..
+.kwwwwk.
+kwwwwwwk
+kwkwwkwk
+kwwkkwwk
+.kWwwWk.
+.kwkkwk.
+..kkkk..
 
+# elite: horned skull, red eyes
+@icon:elite 11
+Wk....kW
+kWkkkkWk
+.kwwwwk.
+kwrwwrwk
+kwwkkwwk
+.kWwwWk.
+.kwkkwk.
+..kkkk..
+
+# rest: campfire with logs
 @icon:fire 11
-....o...
 ...oo...
-..oyo.o.
-..oyoo..
-.oyyyo..
-.oyyyoo.
-..oooo..
-...kk...
+..oyyo..
+.oyywyo.
+.oywwyo.
+.oyyyyo.
+kkoyyokk
+kbbkkbbk
+.kkbbkk.
+
+# treasure: chest with gold latch
+@icon:chest 11
+........
+.kkkkkk.
+kyBBBByk
+kBBBBBBk
+kkkkkkkk
+kbbyybbk
+kbbyybbk
+.kkkkkk.
+
+# shop: gold coin, glint top-left, shade bottom-right
+@icon:coin 11
+..kkkk..
+.kwwyyk.
+kwyyyyok
+kyyyyyok
+kyyyyyok
+kyyooook
+.kooook.
+..kkkk..
+
+# event: yellow ? on dark badge
+@icon:question 11
+.kkkkkk.
+kkyyyykk
+kyykkyyk
+kkkkyykk
+kkkyykkk
+kkkkkkkk
+kkkyykkk
+.kkkkkk.
+
+# boss: crowned skull, big red eyes
+@icon:boss 11
+ky.yy.yk
+kyyyyyyk
+kwwwwwwk
+krrwwrrk
+kwwkkwwk
+kWwwwwWk
+.kwkkwk.
+..kkkk..
