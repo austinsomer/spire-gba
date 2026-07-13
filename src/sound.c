@@ -108,9 +108,21 @@ void music_stop(void)
     REG_SOUND3CNT_L = 0;                            /* wave DAC off */
 }
 
+/* settings toggle: off silences channels but keeps the song position,
+   so re-enabling resumes mid-song (PSG tracker and PCM stream both) */
+void music_enable(int on)
+{
+    opt_music = (u8)on;
+    if (!on) {
+        REG_SOUND2CNT_L = 0; REG_SOUND2CNT_H = 0x8000;
+        REG_SOUND3CNT_L = 0;
+    }
+    pcm_gate();
+}
+
 void music_tick(void)
 {
-    if (!cur) return;
+    if (!cur || !opt_music) return;
     if (--tick_ctr) return;
     tick_ctr = cur->ticks_per_row;
 

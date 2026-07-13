@@ -104,8 +104,15 @@ void pile_exhaust_card(int hand_i);
 void pile_add_discard(u8 card_id);     /* Anger/Immolate etc */
 void pile_shuffle_draw(void);
 
-/* deck browser: shows run.deck. pick_mode 1 → returns index or -1 (B).
-   pick_mode 0 → view only, returns -1 */
+/* card list browser over an arbitrary array (draw/discard/exhaust piles).
+   pick_mode 1 → A returns index or -1 (B) (remove/purge). pick_mode 2 → same
+   but shows a before>after upgrade preview for the selected card (SMITH).
+   pick_mode 0 → view only; A zooms the highlighted card (big face), returns -1. */
+int pile_browse(const CardInst *arr, int n, const char *title, int pick_mode);
+
+/* deck browser: shows run.deck (thin wrapper over pile_browse).
+   pick_mode 1 → index or -1 (B). pick_mode 2 → index + upgrade preview.
+   pick_mode 0 → view/zoom, returns -1 */
 int deck_browse(const char *title, int pick_mode);
 
 #endif

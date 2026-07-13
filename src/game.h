@@ -45,6 +45,7 @@ void ui_bar(int x, int y, int wtiles, int val, int max, int clr);
 u32  rng(void);              /* xorshift */
 int  rng_range(int n);       /* 0..n-1 */
 void rng_seed(u32 s);
+u32  rng_state_get(void);    /* for save blob */
 extern u32 frame_count;
 
 /* BG2 scenery layer (charblock 1, behind BG0/BG1). tiles in bgtiles.h */
@@ -56,9 +57,14 @@ void bg2_fill(int x, int y, int w, int h, int tile);
 void bg2_clear(void);
 void ui_icon(int x, int y, int icon);      /* icon tile on BG1, own bank */
 
-/* full-card faces on BG2: slot 0..3 (palette bank = slot, entries 4..15) */
+/* full-card faces on BG2: slot 0..4 (banks 0-3 + 6, entries 4..15) */
 void card_face_load(int slot, int card_id);
 void card_face_stamp(int slot, int tx, int ty);   /* 5x7 tiles */
+
+/* battle HUD elements (H_* enum in hudimg.h) + relic icons on BG2 */
+void hud_load(void);                       /* tiles + banks 4/5; per combat */
+void hud_stamp(int elem, int tx, int ty);
+void relic_stamp(int relic, int tx, int ty);      /* 2x2 tiles */
 
 /* 2x-scaled text on BG0 (each glyph = 2x2 tiles, synthesized) */
 void txt_put2x(int x, int y, const char *s, int clr);
@@ -66,7 +72,9 @@ void txt2x_reset(void);
 
 /* scene composers (src/scene.c) */
 void battle_bg_load(void);   /* image tiles -> vram; call at combat entry */
-void scene_battle(void);
+void scene_battle(void);          /* full reset (combat entry) */
+void scene_battle_refresh(void);  /* light restamp (per redraw, no clear) */
+void battle_flash(int on);        /* backdrop palette brighten / restore */
 void scene_title(void);
 void scene_map(void);
 void scene_shop(void);
@@ -81,11 +89,30 @@ void obj_hide_all(void);
 
 void sfx_init(void);
 void sfx_blip(void);         /* menu move */
-void sfx_ok(void);           /* confirm */
-void sfx_hit(void);          /* damage (noise) */
-void sfx_block(void);
-void sfx_bad(void);          /* error/cancel */
+void sfx_ok(void);           /* confirm (rising chirp) */
+void sfx_hit(void);          /* impact (thump + crunch) */
+void sfx_block(void);        /* metallic clank */
+void sfx_bad(void);          /* error/cancel (falling womp) */
 void sfx_heal(void);
+void sfx_coin(void);         /* gold gained / purchase */
+
+/* sound settings (persist for the session; toggled in settings menu) */
+extern u8 opt_music, opt_sfx;
+void music_enable(int on);   /* keeps song position; resumes mid-song */
+void settings_screen(void);  /* tiled-mode menu (from title) */
+int  pause_menu(void);       /* in-run overlay (START); 1 = quit to title */
+
+/* PCM music streaming (src/pcm.c): looping 8-bit track over FIFO A.
+   PSG sfx layer on top in hardware. */
+enum { PCM_TITLE, PCM_RUN };
+void pcm_play(int trk);      /* no-op if trk already playing */
+void pcm_stop(void);
+void pcm_gate(void);         /* apply opt_music (pause/resume) */
+void pcm_tick(void);         /* call once per vsync */
+
+/* one-shot sampled SFX on FIFO B (impacts; nav sounds stay PSG) */
+enum { SFXP_HIT, SFXP_CLANG, SFXP_COIN, SFXP_SLASH };
+void sfxpcm_play(int id);
 
 /* ---- music: PSG tracker (ch2 pulse lead, ch3 wave bass, ch4 noise drums) ----
    Row data = 3 bytes/row: {pulse, wave, noise}. Byte codes:
@@ -143,6 +170,16 @@ void deck_remove(int idx);
 enum { RLC_BURNINGBLOOD, RLC_VAJRA, RLC_BRONZESCALES, RLC_ANCHOR,
        RLC_LANTERN, RLC_STRAWBERRY, RLC_BAGPREP, RLC_BLOODVIAL, N_RELICS };
 extern const char relic_names[N_RELICS][14];
+extern const char relic_desc[N_RELICS][24];
+void relic_view(void);         /* owned-relic list + effect text (pause menu) */
+
+/* potions — single slot (run.potion, POT_NONE = empty), used in combat
+   with SELECT. Names/short tags in screens.c */
+enum { POT_NONE, POT_HEAL, POT_STR, POT_BLOCK, POT_ENERGY, N_POTIONS };
+extern const char potion_names[N_POTIONS][12];
+extern const char potion_tags[N_POTIONS][5];   /* HUD chip, e.g. "HP+" */
+#define POTION_PRICE 48
+u8 potion_roll(int elite);   /* drop roll: id or POT_NONE */
 void relic_add(u8 r);
 u8   relic_random(void);       /* unowned relic, or 0xFF if all owned */
 
@@ -164,6 +201,17 @@ void victory_screen(void);
 void map_generate(void);
 int  map_current_room(void);   /* room type of node player stands on */
 extern s8 map_pending_encounter;
+#define MAP_BLOB_SIZE (15 * 7 * 2 + 15)   /* nodes + path_taken */
+int  map_export(u8 *dst);      /* returns MAP_BLOB_SIZE */
+void map_import(const u8 *src);
+
+/* SRAM persistence (src/save.c) */
+void save_init(void);          /* waitstates + load settings; call at boot */
+void save_settings(void);
+void save_run(void);           /* snapshot run+map+rng (on map re-entry) */
+int  save_run_valid(void);
+int  save_run_load(void);      /* 1 = loaded into run/map/rng */
+void save_run_clear(void);     /* on death / victory */
 
 enum { ROOM_NONE, ROOM_MONSTER, ROOM_ELITE, ROOM_EVENT, ROOM_REST,
        ROOM_SHOP, ROOM_TREASURE, ROOM_BOSS };

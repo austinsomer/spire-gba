@@ -9,7 +9,8 @@ ELF     := $(BUILD)/spire.elf
 
 SRC_C   := $(wildcard src/*.c)
 SRC_S   := src/crt0.s
-OBJ     := $(patsubst src/%.c,$(BUILD)/%.o,$(SRC_C)) $(BUILD)/crt0.o
+OBJ     := $(patsubst src/%.c,$(BUILD)/%.o,$(SRC_C)) $(BUILD)/crt0.o \
+           $(BUILD)/pcmdata.o $(BUILD)/sfxdata.o
 
 ARCH    := -mcpu=arm7tdmi -mthumb -mthumb-interwork
 CFLAGS  := $(ARCH) -O2 -Wall -Wextra -Wno-unused-parameter -fno-strict-aliasing \
@@ -28,6 +29,12 @@ $(BUILD)/mem.o: src/mem.c $(HDRS) | $(BUILD)
 	$(CC) $(CFLAGS) -fno-builtin -fno-tree-loop-distribute-patterns -c $< -o $@
 
 $(BUILD)/crt0.o: src/crt0.s | $(BUILD)
+	$(CC) $(ARCH) -c $< -o $@
+
+$(BUILD)/pcmdata.o: src/pcmdata.s $(wildcard assets/music/*.pcm) | $(BUILD)
+	$(CC) $(ARCH) -c $< -o $@
+
+$(BUILD)/sfxdata.o: src/sfxdata.s $(wildcard assets/sfx/*.pcm) | $(BUILD)
 	$(CC) $(ARCH) -c $< -o $@
 
 $(ELF): $(OBJ) src/gba.ld

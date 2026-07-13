@@ -63,6 +63,30 @@ int map_current_room(void)
     return mnode[run.floor][run.mapcol].room;
 }
 
+/* save blob: raw node bytes + path_taken (see MAP_BLOB_SIZE) */
+int map_export(u8 *dst)
+{
+    int n = 0;
+    for (int f = 0; f < MFLOORS; f++)
+        for (int c = 0; c < MCOLS; c++) {
+            dst[n++] = mnode[f][c].room;
+            dst[n++] = mnode[f][c].edges;
+        }
+    for (int f = 0; f < MFLOORS; f++) dst[n++] = path_taken[f];
+    return n;
+}
+
+void map_import(const u8 *src)
+{
+    int n = 0;
+    for (int f = 0; f < MFLOORS; f++)
+        for (int c = 0; c < MCOLS; c++) {
+            mnode[f][c].room  = src[n++];
+            mnode[f][c].edges = src[n++];
+        }
+    for (int f = 0; f < MFLOORS; f++) path_taken[f] = src[n++];
+}
+
 static int pick_monster(void)
 {
     if (run.floor < 3) return rng_range(4);
@@ -121,6 +145,7 @@ static int reachable(int f, int c)
 #define PT_TILES  36                     /* 6x6 per pattern */
 enum { PAT_V_DASH, PAT_D_DASH, PAT_V_SOLID, PAT_D_SOLID, N_PATS };
 #define CURSOR_TILE (PT_BASE + N_PATS * PT_TILES)
+#define DOT_TILE    (CURSOR_TILE + 1)    /* reachable-node marker */
 
 static u8 pat_used[N_PATS][6];           /* col bitmask per row */
 static int map_tiles_ready;
@@ -205,6 +230,20 @@ static void gen_map_tiles(void)
             dst[y * 2] = line & 0xFFFF; dst[y * 2 + 1] = line >> 16;
         }
     }
+    /* reachable-node marker: small cream square w/ dark outline */
+    {
+        vu16 *dst = CHARBLOCK(1) + DOT_TILE * 16;
+        for (int y = 0; y < 8; y++) {
+            u32 line = 0;
+            for (int x = 0; x < 8; x++) {
+                int px = 3;
+                if (x >= 2 && x <= 5 && y >= 2 && y <= 5)
+                    px = (x == 2 || x == 5 || y == 2 || y == 5) ? 1 : 2;
+                line |= (u32)px << (x * 4);
+            }
+            dst[y * 2] = line & 0xFFFF; dst[y * 2 + 1] = line >> 16;
+        }
+    }
     map_tiles_ready = 1;
 }
 
@@ -238,20 +277,26 @@ static void icon16(int cx_px, int cy_px, int tl, int bank)
     bg2_stamp(tx + 1, ty + 1, tl + 3, bank, 0);
 }
 
+/* mottled sage backdrop tile for cell (x,y) — also used to restore the
+   cell under the cursor without recomposing the whole map */
+static void sage_cell(int x, int y)
+{
+    u32 h = (u32)(x * 2654435761u + y * 40503u);
+    h ^= h >> 13;
+    int t = TB_SAGE;
+    if ((h & 15) == 0) t = TB_SAGELIGHT;
+    else if ((h & 15) == 1) t = TB_SAGEDARK;
+    bg2_tile(x, y, t);
+}
+
 static void compose_map(void)
 {
     if (!map_tiles_ready) gen_map_tiles();
     bg2_clear();
     /* sage backdrop with mottled patches, full 64 rows */
     for (int y = 0; y < 64; y++)
-        for (int x = 0; x < 32; x++) {
-            u32 h = (u32)(x * 2654435761u + y * 40503u);
-            h ^= h >> 13;
-            int t = TB_SAGE;
-            if ((h & 15) == 0) t = TB_SAGELIGHT;
-            else if ((h & 15) == 1) t = TB_SAGEDARK;
-            bg2_tile(x, y, t);
-        }
+        for (int x = 0; x < 32; x++)
+            sage_cell(x, y);
     /* edges */
     for (int f = 0; f < MFLOORS - 1; f++)
         for (int c = 0; c < MCOLS; c++) {
@@ -336,6 +381,12 @@ void map_screen(void)
         compose_map();
         banner();
         if (boss_mode) txt_put(9, 1, "THE BOSS AWAITS", CLR_DKRED);
+        /* steady markers beside every reachable node this floor */
+        if (!boss_mode)
+            for (int c = 0; c < MCOLS; c++)
+                if (reachable(run.floor, c))
+                    bg2_stamp((NPX(c) - 16) >> 3, (NPY(run.floor) - 4) >> 3,
+                              DOT_TILE, 15, 0);
 
         /* camera centered on current row (or boss) */
         int target_y = boss_mode ? BOSS_Y + 4 : NPY(run.floor);
@@ -350,35 +401,39 @@ void map_screen(void)
             blink++;
             bg2_scroll(pan);
             /* blinking cursor left of selected node (bg tile stamp) */
-            {
-                int cx = boss_mode ? NPX(3) : NPX(sel);
-                int cy = boss_mode ? BOSS_Y + 4 : NPY(run.floor);
-                int tx = (cx - 16) >> 3, ty = (cy - 4) >> 3;
-                if (blink & 16) bg2_stamp(tx, ty, CURSOR_TILE, 15, 0);
-                else {
-                    u32 h = (u32)(tx * 2654435761u + ty * 40503u);
-                    h ^= h >> 13;
-                    int t = TB_SAGE;
-                    if ((h & 15) == 0) t = TB_SAGELIGHT;
-                    else if ((h & 15) == 1) t = TB_SAGEDARK;
-                    bg2_tile(tx, ty, t);
-                }
-            }
+            int ctx = ((boss_mode ? NPX(3) : NPX(sel)) - 16) >> 3;
+            int cty = ((boss_mode ? BOSS_Y + 4 : NPY(run.floor)) - 4) >> 3;
+            if (blink & 16)      bg2_stamp(ctx, cty, CURSOR_TILE, 15, 0);
+            else if (boss_mode)  sage_cell(ctx, cty);
+            else                 bg2_stamp(ctx, cty, DOT_TILE, 15, 0);
             if (key_repeat(KEY_UP) && pan > 0)        { pan -= 8; continue; }
             if (key_repeat(KEY_DOWN) && pan < CAM_MAX){ pan += 8; continue; }
+            /* L/R move the cursor in place — recomposing the whole map
+               here blanked BG2 for a frame and flickered */
             if (!boss_mode && key_repeat(KEY_LEFT)) {
                 for (int c = sel - 1; c >= 0; c--)
-                    if (reachable(run.floor, c)) { sel = c; sfx_blip(); break; }
-                break;
+                    if (reachable(run.floor, c)) {
+                        bg2_stamp(ctx, cty, DOT_TILE, 15, 0);  /* old sel */
+                        sel = c; blink = 16; sfx_blip(); break;
+                    }
+                continue;
             }
             if (!boss_mode && key_repeat(KEY_RIGHT)) {
                 for (int c = sel + 1; c < MCOLS; c++)
-                    if (reachable(run.floor, c)) { sel = c; sfx_blip(); break; }
-                break;
+                    if (reachable(run.floor, c)) {
+                        bg2_stamp(ctx, cty, DOT_TILE, 15, 0);  /* old sel */
+                        sel = c; blink = 16; sfx_blip(); break;
+                    }
+                continue;
             }
             if (key_hit(KEY_SELECT)) {
                 obj_hide_all();
                 deck_browse("DECK", 0);
+                break;   /* recompose */
+            }
+            if (key_hit(KEY_START)) {
+                obj_hide_all();
+                if (pause_menu()) { bg2_scroll(0); return; }  /* SAVE & QUIT */
                 break;   /* recompose */
             }
             if (key_hit(KEY_A)) {

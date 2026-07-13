@@ -7,6 +7,31 @@ const char relic_names[N_RELICS][14] = {
     "BURNING BLOOD", "VAJRA", "BRONZE SCALES", "ANCHOR",
     "LANTERN", "STRAWBERRY", "BAG OF PREP", "BLOOD VIAL",
 };
+const char relic_desc[N_RELICS][24] = {
+    "HEAL 6 HP AFTER COMBAT",    /* BURNING BLOOD */
+    "START COMBAT: +1 STR",      /* VAJRA */
+    "START COMBAT: +3 THORNS",   /* BRONZE SCALES */
+    "TURN 1: +10 BLOCK",         /* ANCHOR */
+    "TURN 1: +1 ENERGY",         /* LANTERN */
+    "+7 MAX HP",                 /* STRAWBERRY */
+    "TURN 1: DRAW 2 CARDS",      /* BAG OF PREP */
+    "START COMBAT: HEAL 2 HP",   /* BLOOD VIAL */
+};
+
+/* ---------- potions ---------- */
+
+const char potion_names[N_POTIONS][12] = {
+    "", "BLOOD POT.", "STR POTION", "BLOCK POT.", "ENERGY POT",
+};
+const char potion_tags[N_POTIONS][5] = { "", "HP+", "STR+", "BLK+", "NRG+" };
+
+/* drop roll after combat: 30% normal / 50% elite, only into empty slot */
+u8 potion_roll(int elite)
+{
+    if (run.potion != POT_NONE) return POT_NONE;
+    if ((int)rng_range(100) >= (elite ? 50 : 30)) return POT_NONE;
+    return (u8)(POT_HEAL + rng_range(N_POTIONS - 1));
+}
 
 void relic_add(u8 r)
 {
@@ -72,7 +97,45 @@ static int menu(int x, int y, const char *const *items, int n, int allow_back)
     }
 }
 
+static int slen(const char *s) { int n = 0; while (s[n]) n++; return n; }
+
+/* centered text within a cell whose center column is cx */
+static void txt_center(int cx, int y, const char *s, int clr)
+{
+    txt_put(cx - slen(s) / 2, y, s, clr);
+}
+
+/* border-only frame on BG1 (unlike ui_box, no opaque interior fill, so a
+   BG2 card face shows through). w>=2, h>=2. */
+static void card_frame(int x, int y, int w, int h, int clr)
+{
+    ui_tile(x, y, T_CORN_TL, clr);
+    ui_tile(x + w - 1, y, T_CORN_TR, clr);
+    ui_tile(x, y + h - 1, T_CORN_BL, clr);
+    ui_tile(x + w - 1, y + h - 1, T_CORN_BR, clr);
+    for (int i = 1; i < w - 1; i++) {
+        ui_tile(x + i, y, T_EDGE_T, clr);
+        ui_tile(x + i, y + h - 1, T_EDGE_B, clr);
+    }
+    for (int j = 1; j < h - 1; j++) {
+        ui_tile(x, y + j, T_EDGE_L, clr);
+        ui_tile(x + w - 1, y + j, T_EDGE_R, clr);
+    }
+}
+
+/* overlay a card face's live cost orb + dmg/blk badge (BG0/BG1, over the
+   BG2 face art). x,y = top-left grid cell of the 5x7 face. */
+static void face_overlay(int x, int y, int id)
+{
+    ui_tile(x, y, T_ENERGY, CLR_YELLOW);
+    txt_int(x, y, cards[id].cost, CLR_WHITE);
+    if (cards[id].dmg)        txt_int(x + 2, y + 5, cards[id].dmg, CLR_WHITE);
+    else if (cards[id].block) txt_int(x + 2, y + 5, cards[id].block, CLR_WHITE);
+}
+
 /* pick 1 of 3 cards; returns card id or -1 (skip) */
+#define RCARD_X(i)  (3 + (i) * 9)   /* face cols 3/12/21, 5 wide */
+#define RCARD_Y     3               /* face rows 3..9 */
 static int card_choice(void)
 {
     u8 c3[3];
@@ -87,27 +150,35 @@ static int card_choice(void)
                  (i > 0 && id == c3[0]) || (i > 1 && id == c3[1]));
         c3[i] = id;
     }
+    /* load + stamp the three big faces onto BG2 once (map persists across
+       the nav loop; header() only clears BG0/BG1) */
+    scene_none();
+    for (int i = 0; i < 3; i++) {
+        card_face_load(i, c3[i]);
+        card_face_stamp(i, RCARD_X(i), RCARD_Y);
+    }
     int sel = 0;
     char nb[16];
     for (;;) {
         header("CHOOSE A CARD", CLR_YELLOW);
         for (int i = 0; i < 3; i++) {
-            int y = 3 + i * 4;
-            ui_box(2, y, 26, 4, i == sel ? CLR_YELLOW : CLR_GRAY);
+            int x = RCARD_X(i);
+            card_frame(x - 1, RCARD_Y - 1, 7, 9, i == sel ? CLR_YELLOW : CLR_GRAY);
+            face_overlay(x, RCARD_Y, c3[i]);
             CardInst ci = {c3[i], 0};
-            txt_put(4, y + 1, card_name(ci, nb), CLR_WHITE);
-            txt_int(24, y + 1, cards[c3[i]].cost, CLR_YELLOW);
-            if (cards[c3[i]].dmg) { txt_put(4, y + 2, "DMG", CLR_RED); txt_int(8, y + 2, cards[c3[i]].dmg, CLR_RED); }
-            else if (cards[c3[i]].block) { txt_put(4, y + 2, "BLK", CLR_BLUE); txt_int(8, y + 2, cards[c3[i]].block, CLR_BLUE); }
-            txt_put(11, y + 2, cards[c3[i]].desc, CLR_GRAY);
+            txt_center(x + 2, RCARD_Y + 8, card_name(ci, nb), i == sel ? CLR_WHITE : CLR_GRAY);
         }
-        txt_put(1, 16, "A:TAKE B:SKIP", CLR_GRAY);
+        /* selected-card detail line */
+        txt_put(1, 13, cards[c3[sel]].desc, CLR_GRAY);
+        txt_put(1, 17, "A:TAKE B:SKIP", CLR_GRAY);
         for (;;) {
             vsync(); key_poll();
-            if (key_repeat(KEY_UP) && sel > 0)   { sel--; sfx_blip(); break; }
-            if (key_repeat(KEY_DOWN) && sel < 2) { sel++; sfx_blip(); break; }
-            if (key_hit(KEY_A)) { sfx_ok(); return c3[sel]; }
-            if (key_hit(KEY_B)) { sfx_bad(); return -1; }
+            if (key_repeat(KEY_LEFT)  && sel > 0) { sel--; sfx_blip(); break; }
+            if (key_repeat(KEY_RIGHT) && sel < 2) { sel++; sfx_blip(); break; }
+            if (key_repeat(KEY_UP)    && sel > 0) { sel--; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN)  && sel < 2) { sel++; sfx_blip(); break; }
+            if (key_hit(KEY_A)) { sfx_ok(); scene_none(); return c3[sel]; }
+            if (key_hit(KEY_B)) { sfx_bad(); scene_none(); return -1; }
         }
     }
 }
@@ -121,20 +192,22 @@ void reward_screen(int elite)
     int got_gold = 0, got_card = 0, got_relic = !elite;
     u8 relic = elite ? relic_random() : 0xFF;
     if (relic == 0xFF) got_relic = 1;
+    u8 pot = potion_roll(elite);
 
     for (;;) {
         header("VICTORY! REWARDS", CLR_GREEN);
-        const char *items[4]; int n = 0, act[4];
+        const char *items[5]; int n = 0, act[5];
         char gbuf[12] = "GOLD +";
         gbuf[6] = '0' + gold / 10; gbuf[7] = '0' + gold % 10; gbuf[8] = 0;
         if (!got_gold)  { items[n] = gbuf; act[n++] = 0; }
         if (!got_relic) { items[n] = relic_names[relic]; act[n++] = 1; }
         if (!got_card)  { items[n] = "CARD REWARD"; act[n++] = 2; }
+        if (pot)        { items[n] = potion_names[pot]; act[n++] = 4; }
         items[n] = "LEAVE"; act[n++] = 3;
 
         int m = menu(4, 4, items, n, 0);
         switch (act[m]) {
-        case 0: run.gold += gold; got_gold = 1; break;
+        case 0: run.gold += gold; got_gold = 1; sfx_coin(); break;
         case 1: relic_add(relic); got_relic = 1; break;
         case 2: {
             int id = card_choice();
@@ -142,6 +215,7 @@ void reward_screen(int elite)
             got_card = 1;
             break;
         }
+        case 4: run.potion = pot; pot = 0; sfx_heal(); break;
         case 3:
             if (run_has_relic(RLC_BURNINGBLOOD)) heal(6);
             gstate = ST_MAP; return;
@@ -161,7 +235,7 @@ void rest_screen(void)
         int m = menu(4, 6, items, 3, 0);
         if (m == 0) { heal(run.maxhp * 3 / 10); break; }
         if (m == 1) {
-            int i = deck_browse("UPGRADE WHICH?", 1);
+            int i = deck_browse("UPGRADE WHICH?", 2);
             header("REST SITE", CLR_ORANGE);
             if (i < 0) continue;
             if (run.deck[i].up) { sfx_bad(); continue; }
@@ -182,6 +256,7 @@ void treasure_screen(void)
     u8 r = relic_random();
     int gold = 20 + rng_range(16);
     run.gold += gold;
+    sfx_coin();
     txt_put(4, 5, "FOUND:", CLR_WHITE);
     txt_put(4, 7, "GOLD +", CLR_YELLOW); txt_int(10, 7, gold, CLR_YELLOW);
     if (r != 0xFF) { relic_add(r); txt_put(4, 9, relic_names[r], CLR_CYAN); }
@@ -192,6 +267,9 @@ void treasure_screen(void)
 }
 
 /* ---------- shop ---------- */
+
+#define SCARD_X(i)  (1 + (i) * 6)   /* face cols 1/7/13/19/25, 5 wide */
+#define SCARD_Y     2               /* face rows 2..8 */
 
 void shop_screen(void)
 {
@@ -211,59 +289,86 @@ void shop_screen(void)
     s16 rprice = 140 + rng_range(21);
     u8 rsold = (relic == 0xFF);
     u8 removed = 0;
+    u8 pot = (u8)(POT_HEAL + rng_range(N_POTIONS - 1));
+    u8 psold = 0;
     char nb[16];
     int sel = 0;
 
+    /* stamp the 5 big card faces across the top once (BG2 map persists;
+       header() clears only BG0/BG1). Re-stamped after any scene_shop redraw. */
+    for (int i = 0; i < 5; i++) {
+        card_face_load(i, ids[i]);
+        card_face_stamp(i, SCARD_X(i), SCARD_Y);
+    }
+
     for (;;) {
         header("SHOP", CLR_YELLOW);
-        ui_fill(0, 2, 30, 9, T_PANEL, CLR_GRAY);
-        /* rows: 5 cards, relic, remove, leave */
+        ui_fill(0, 10, 30, 5, T_PANEL, CLR_GRAY);   /* backdrop for menu rows */
+        /* 5 card faces across the top + price under each */
         for (int i = 0; i < 5; i++) {
-            int y = 2 + i;
-            CardInst ci = {ids[i], 0};
-            int can = !sold[i] && run.gold >= price[i];
-            if (sel == i) ui_fill(0, y, 30, 1, T_PANEL, CLR_BLUE);
-            txt_putc(0, y, sel == i ? '>' : ' ', CLR_YELLOW);
-            if (sold[i]) { txt_put(2, y, "SOLD OUT", CLR_GRAY); continue; }
-            txt_put(2, y, card_name(ci, nb), can ? CLR_WHITE : CLR_GRAY);
-            txt_int(17, y, price[i], can ? CLR_YELLOW : CLR_DKRED);
+            int x = SCARD_X(i);
+            if (sold[i]) { txt_center(x + 2, SCARD_Y + 3, "SOLD", CLR_GRAY); continue; }
+            int can = run.gold >= price[i];
+            face_overlay(x, SCARD_Y, ids[i]);
+            if (sel == i) card_frame(x - 1, SCARD_Y - 1, 7, 9, CLR_YELLOW);
+            txt_int(x + 1, SCARD_Y + 7, price[i], can ? CLR_YELLOW : CLR_DKRED);
         }
-        if (sel < 5 && !sold[sel])
-            txt_put(1, 18, cards[ids[sel]].desc, CLR_GRAY);
-        int y = 8;
+        /* relic / potion / remove / leave text rows */
+        int y = 11;
         if (sel == 5) ui_fill(0, y, 30, 1, T_PANEL, CLR_BLUE);
         txt_putc(0, y, sel == 5 ? '>' : ' ', CLR_YELLOW);
         if (rsold) txt_put(2, y, "SOLD OUT", CLR_GRAY);
         else {
             txt_put(2, y, relic_names[relic], run.gold >= rprice ? CLR_CYAN : CLR_GRAY);
-            txt_int(17, y, rprice, run.gold >= rprice ? CLR_YELLOW : CLR_DKRED);
+            txt_int(20, y, rprice, run.gold >= rprice ? CLR_YELLOW : CLR_DKRED);
         }
-        y = 9;
+        y = 12;
         if (sel == 6) ui_fill(0, y, 30, 1, T_PANEL, CLR_BLUE);
         txt_putc(0, y, sel == 6 ? '>' : ' ', CLR_YELLOW);
-        txt_put(2, y, removed ? "REMOVED" : "REMOVE CARD", removed ? CLR_GRAY : CLR_WHITE);
-        if (!removed) txt_int(17, y, 75, run.gold >= 75 ? CLR_YELLOW : CLR_DKRED);
-        y = 10;
+        if (psold) txt_put(2, y, "SOLD OUT", CLR_GRAY);
+        else {
+            int can = run.gold >= POTION_PRICE && run.potion == POT_NONE;
+            txt_put(2, y, potion_names[pot], can ? CLR_GREEN : CLR_GRAY);
+            txt_int(20, y, POTION_PRICE, can ? CLR_YELLOW : CLR_DKRED);
+        }
+        y = 13;
         if (sel == 7) ui_fill(0, y, 30, 1, T_PANEL, CLR_BLUE);
         txt_putc(0, y, sel == 7 ? '>' : ' ', CLR_YELLOW);
+        txt_put(2, y, removed ? "REMOVED" : "REMOVE CARD", removed ? CLR_GRAY : CLR_WHITE);
+        if (!removed) txt_int(20, y, 75, run.gold >= 75 ? CLR_YELLOW : CLR_DKRED);
+        y = 14;
+        if (sel == 8) ui_fill(0, y, 30, 1, T_PANEL, CLR_BLUE);
+        txt_putc(0, y, sel == 8 ? '>' : ' ', CLR_YELLOW);
         txt_put(2, y, "LEAVE", CLR_WHITE);
+        /* selected card name + description */
+        if (sel < 5 && !sold[sel]) {
+            CardInst ci = {ids[sel], 0};
+            txt_put(1, 16, card_name(ci, nb), CLR_WHITE);
+            txt_put(1, 17, cards[ids[sel]].desc, CLR_GRAY);
+        }
         txt_put(1, 19, "A:BUY B:LEAVE", CLR_GRAY);
 
         for (;;) {
             vsync(); key_poll();
             if (key_repeat(KEY_UP) && sel > 0)   { sel--; sfx_blip(); break; }
-            if (key_repeat(KEY_DOWN) && sel < 7) { sel++; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN) && sel < 8) { sel++; sfx_blip(); break; }
             if (key_hit(KEY_B)) { obj_hide_all(); gstate = ST_MAP; return; }
             if (key_hit(KEY_A)) {
                 if (sel < 5 && !sold[sel] && run.gold >= price[sel]) {
-                    run.gold -= price[sel]; deck_add(ids[sel]); sold[sel] = 1; sfx_ok();
+                    run.gold -= price[sel]; deck_add(ids[sel]); sold[sel] = 1; sfx_coin();
+                    bg2_fill(SCARD_X(sel), SCARD_Y, 5, 7, 0);   /* clear the face */
                 } else if (sel == 5 && !rsold && run.gold >= rprice) {
-                    run.gold -= rprice; relic_add(relic); rsold = 1; sfx_ok();
-                } else if (sel == 6 && !removed && run.gold >= 75) {
+                    run.gold -= rprice; relic_add(relic); rsold = 1; sfx_coin();
+                } else if (sel == 6 && !psold && run.potion == POT_NONE &&
+                           run.gold >= POTION_PRICE) {
+                    run.gold -= POTION_PRICE; run.potion = pot; psold = 1; sfx_coin();
+                } else if (sel == 7 && !removed && run.gold >= 75) {
                     int i = deck_browse("REMOVE WHICH?", 1);
-                    scene_shop();
+                    scene_shop();   /* bg2_clear'd -> re-stamp the unsold faces */
+                    for (int k = 0; k < 5; k++)
+                        if (!sold[k]) card_face_stamp(k, SCARD_X(k), SCARD_Y);
                     if (i >= 0) { run.gold -= 75; deck_remove(i); removed = 1; sfx_ok(); }
-                } else if (sel == 7) { obj_hide_all(); gstate = ST_MAP; return; }
+                } else if (sel == 8) { obj_hide_all(); gstate = ST_MAP; return; }
                 else sfx_bad();
                 break;
             }
@@ -319,7 +424,7 @@ void event_screen(void)
             txt_put(2, 4, "TO CHANGE YOUR DECK.", CLR_GRAY);
             static const char *const it[] = {"FORGET (REMOVE CARD)", "GROW  (UPGRADE CARD)"};
             int m = menu(4, 7, it, 2, 0);
-            int i = deck_browse(m == 0 ? "REMOVE WHICH?" : "UPGRADE WHICH?", 1);
+            int i = deck_browse(m == 0 ? "REMOVE WHICH?" : "UPGRADE WHICH?", m == 0 ? 1 : 2);
             if (i < 0) continue;
             if (m == 0) deck_remove(i);
             else run.deck[i].up = 1;
@@ -334,6 +439,7 @@ void event_screen(void)
 
 void gameover_screen(void)
 {
+    save_run_clear();
     txt_clear(); ui_clear();
     scene_none();
     ui_box(4, 5, 22, 8, CLR_DKRED);
@@ -349,6 +455,7 @@ void gameover_screen(void)
 
 void victory_screen(void)
 {
+    save_run_clear();
     txt_clear(); ui_clear();
     scene_none();
     ui_box(3, 4, 24, 10, CLR_YELLOW);
@@ -362,5 +469,141 @@ void victory_screen(void)
     for (;;) {
         vsync(); key_poll();
         if (key_hit(KEY_START | KEY_A)) { gstate = ST_TITLE; return; }
+    }
+}
+
+/* ---------- settings (from title menu) ---------- */
+
+void settings_screen(void)
+{
+    scene_title();          /* brick wall + torches backdrop */
+    int sel = 0;
+    static const char *const names[3] = { "MUSIC", "SOUND FX", "BACK" };
+    for (;;) {
+        txt_clear(); ui_clear();
+        txt_put2x(7, 2, "SETTINGS", CLR_YELLOW);
+        for (int i = 0; i < 3; i++) {
+            int y = 8 + i * 2;
+            ui_fill(5, y, 20, 1, T_PANEL, i == sel ? CLR_BLUE : CLR_GRAY);
+            txt_putc(5, y, i == sel ? '>' : ' ', CLR_YELLOW);
+            txt_put(7, y, names[i], i == sel ? CLR_WHITE : CLR_GRAY);
+        }
+        txt_put(20, 8,  opt_music ? "ON" : "OFF", opt_music ? CLR_GREEN : CLR_RED);
+        txt_put(20, 10, opt_sfx   ? "ON" : "OFF", opt_sfx   ? CLR_GREEN : CLR_RED);
+        txt_put(7, 16, "A:TOGGLE  B:BACK", CLR_GRAY);
+        for (;;) {
+            vsync(); key_poll();
+            if (key_repeat(KEY_UP) && sel > 0)   { sel--; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN) && sel < 2) { sel++; sfx_blip(); break; }
+            if (key_hit(KEY_A) | key_hit(KEY_LEFT) | key_hit(KEY_RIGHT)) {
+                if (sel == 0)      { music_enable(!opt_music); save_settings(); sfx_ok(); }
+                else if (sel == 1) { opt_sfx = !opt_sfx; save_settings(); sfx_ok(); }
+                else               { sfx_ok(); return; }
+                break;
+            }
+            if (key_hit(KEY_B)) { sfx_bad(); return; }
+        }
+    }
+}
+
+/* ---------- relic view (from pause menu) ----------
+   Lists the run's owned relics with their effect text so the player can
+   read what each does mid-run. Each row = the relic's 16x16 icon (BG2,
+   via relic_stamp) + its name and one-line description. hud_load() is
+   called first because the relic icon tiles may not be resident in cb1
+   outside combat (the map/pause path never loaded them). Scrolls with
+   UP/DOWN when more than VIS relics are owned (Act 1 has <=8, so scroll
+   is rarely reached; the array caps at 16). B or A returns. */
+void relic_view(void)
+{
+    scene_none();               /* dark backdrop (BG2 -> tile 0) */
+    hud_load();                 /* ensure relic icon tiles/pal resident */
+    if (run.nrelics == 0) {
+        txt_clear(); ui_clear();
+        txt_put(1, 0, "RELICS", CLR_YELLOW);
+        ui_box(4, 8, 22, 4, CLR_GRAY);
+        txt_center(15, 10, "NO RELICS YET", CLR_GRAY);
+        txt_put(1, 19, "B:BACK", CLR_GRAY);
+        for (;;) {
+            vsync(); key_poll();
+            if (key_hit(KEY_B) | key_hit(KEY_A)) { sfx_bad(); return; }
+        }
+    }
+    const int VIS = 8;          /* 8 relics x 2 rows = rows 2..17 */
+    int top = 0;
+    for (;;) {
+        txt_clear(); ui_clear();
+        bg2_fill(0, 1, 30, 18, 0);       /* wipe stale icons before restamp */
+        txt_put(1, 0, "RELICS", CLR_YELLOW);
+        int shown = run.nrelics - top;
+        if (shown > VIS) shown = VIS;
+        for (int i = 0; i < shown; i++) {
+            int r = run.relics[top + i], y = 2 + i * 2;
+            relic_stamp(r, 0, y);
+            txt_put(3, y,     relic_names[r], CLR_WHITE);
+            txt_put(3, y + 1, relic_desc[r],  CLR_GRAY);
+        }
+        if (top > 0)                    txt_put(27, 1,  "UP",  CLR_YELLOW);
+        if (top + VIS < run.nrelics)    txt_put(27, 18, "DN",  CLR_YELLOW);
+        txt_put(1, 19, "B:BACK", CLR_GRAY);
+        for (;;) {
+            vsync(); key_poll();
+            if (key_repeat(KEY_UP) && top > 0) { top--; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN) && top + VIS < run.nrelics) {
+                top++; sfx_blip(); break;
+            }
+            if (key_hit(KEY_B) | key_hit(KEY_A)) { sfx_bad(); return; }
+        }
+    }
+}
+
+/* ---------- in-run pause menu (START in combat / on the map) ----------
+   Overlay over a darkened backdrop: RESUME / DECK / SETTINGS / SAVE & QUIT.
+   Returns 1 when the caller should exit its screen loop (SAVE & QUIT set
+   gstate = ST_TITLE); 0 to resume. Caller hides sprites first and
+   recomposes its screen after (the START branch mirrors the KEY_B/SELECT
+   deck_browse path). SAVE & QUIT calls save_run() and returns to title:
+   from the map this is the ordinary between-rooms snapshot; mid-combat it
+   persists the live run (run.hp already reflects damage taken, run.floor
+   was advanced past the node before combat began), so CONTINUE resumes on
+   the map at the next node choices — the current fight is abandoned with no
+   reward and no replay (no save corruption, no reward duplication). */
+int pause_menu(void)
+{
+    static const char *const opts[5] =
+        { "RESUME", "DECK", "RELICS", "SETTINGS", "SAVE & QUIT" };
+    const int BX = 7, BW = 16;            /* menu panel: cols 7..22 */
+    const int IY = 10;                    /* first item row */
+    int sel = 0;
+    for (;;) {
+        scene_none();                     /* darken the backdrop (BG2 -> black) */
+        txt_clear(); ui_clear();
+        /* title banner — 2x PAUSED centered (12 tiles) in a padded box */
+        ui_box(7, 4, 16, 4, CLR_YELLOW);
+        txt_put2x(9, 5, "PAUSED", CLR_YELLOW);
+        /* menu panel — one framed box, only the selected row highlighted */
+        ui_box(BX, 9, BW, 7, CLR_GRAY);
+        for (int i = 0; i < 5; i++) {
+            int ry = IY + i, hi = (i == sel);
+            if (hi) ui_fill(BX + 1, ry, BW - 2, 1, T_PANEL, CLR_BLUE);
+            txt_center(15, ry, opts[i], hi ? CLR_WHITE : CLR_GRAY);
+        }
+        txt_center(15, 17, "A:SELECT  B:RESUME", CLR_GRAY);
+
+        for (;;) {
+            vsync(); key_poll();
+            if (key_repeat(KEY_UP)   && sel > 0) { sel--; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN) && sel < 4) { sel++; sfx_blip(); break; }
+            if (key_hit(KEY_B)) { sfx_bad(); return 0; }        /* RESUME */
+            if (key_hit(KEY_A)) {
+                if (sel == 0) { sfx_ok(); return 0; }           /* RESUME */
+                sfx_ok();
+                if (sel == 1) { obj_hide_all(); scene_none();
+                                deck_browse("DECK", 0); break; }
+                if (sel == 2) { obj_hide_all(); relic_view(); break; }
+                if (sel == 3) { settings_screen(); break; }
+                save_run(); gstate = ST_TITLE; return 1;        /* SAVE & QUIT */
+            }
+        }
     }
 }

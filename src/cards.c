@@ -166,9 +166,95 @@ void pile_add_discard(u8 card_id)
 static const char *type_str[] = {"ATK", "SKL", "PWR", "STS"};
 static const int type_clr[] = {CLR_RED, CLR_GREEN, CLR_CYAN, CLR_GRAY};
 
-int deck_browse(const char *title, int pick_mode)
+/* border-only frame on BG1 (leaves interior clear so a BG2 face shows) */
+static void zoom_frame(int x, int y, int w, int h, int clr)
 {
-    if (run.ndeck == 0) return -1;
+    ui_tile(x, y, T_CORN_TL, clr);
+    ui_tile(x + w - 1, y, T_CORN_TR, clr);
+    ui_tile(x, y + h - 1, T_CORN_BL, clr);
+    ui_tile(x + w - 1, y + h - 1, T_CORN_BR, clr);
+    for (int i = 1; i < w - 1; i++) {
+        ui_tile(x + i, y, T_EDGE_T, clr);
+        ui_tile(x + i, y + h - 1, T_EDGE_B, clr);
+    }
+    for (int j = 1; j < h - 1; j++) {
+        ui_tile(x, y + j, T_EDGE_L, clr);
+        ui_tile(x + w - 1, y + j, T_EDGE_R, clr);
+    }
+}
+
+static void zoom_center(int cx, int y, const char *s, int clr)
+{
+    int n = 0; while (s[n]) n++;
+    txt_put(cx - n / 2, y, s, clr);
+}
+
+/* big-card zoom: render the selected card as the 40x56 battle face art
+   (slot 0) with a frame + live cost/dmg/blk + full name/type/desc. any key
+   returns. uses BG2 + charblock-1 face tiles/pal (bank 0 entries 4..15;
+   list text uses entries 1..3, so no clobber of the list on return). */
+static void card_zoom(CardInst c)
+{
+    const Card *cd = &cards[c.id];
+    int fx = 12, fy = 3;               /* 5x7 face at cols 12-16, rows 3-9 */
+    char nb[16];
+    bg2_clear();
+    card_face_load(0, c.id);
+    card_face_stamp(0, fx, fy);
+    txt_clear(); ui_clear();
+    zoom_frame(fx - 1, fy - 1, 7, 9, c.up ? CLR_GREEN : CLR_YELLOW);
+    /* live cost orb over the baked one (upgrade/X aware) */
+    ui_tile(fx, fy, T_ENERGY, CLR_YELLOW);
+    if (cd->cost == COST_X) txt_putc(fx, fy, 'X', CLR_WHITE);
+    else txt_int(fx, fy, card_cost(c), CLR_WHITE);
+    /* live dmg/blk badge in the face text region */
+    if (card_dmg(c))        txt_int(fx + 2, fy + 5, card_dmg(c), CLR_WHITE);
+    else if (card_block(c)) txt_int(fx + 2, fy + 5, card_block(c), CLR_WHITE);
+    /* name / type / full desc below the card */
+    zoom_center(15, 12, card_name(c, nb), c.up ? CLR_GREEN : CLR_WHITE);
+    zoom_center(15, 14, type_str[cd->type], type_clr[cd->type]);
+    if (cd->desc[0]) zoom_center(15, 16, cd->desc, CLR_GRAY);
+    zoom_center(15, 19, "ANY KEY: BACK", CLR_GRAY);
+    for (;;) { vsync(); key_poll(); if (key_hit(KEY_ANY)) break; }
+    bg2_clear();                        /* wipe the face; list backdrop = black */
+}
+
+/* one stat's before>after on row y; green = upgraded value. advances x, with
+   a trailing space. no-op (returns x unchanged) when the stat is unchanged. */
+static int pv_stat(int x, int y, const char *lbl, int a, int b)
+{
+    if (a == b) return x;
+    int i = 0; while (lbl[i]) i++;
+    txt_put(x, y, lbl, CLR_GRAY); x += i;
+    x = txt_int_at(x, y, a, CLR_WHITE);
+    txt_putc(x, y, '>', CLR_GRAY); x++;
+    x = txt_int_at(x, y, b, CLR_GREEN);
+    return x + 1;
+}
+
+/* upgrade preview line for the SMITH/upgrade picker: BEFORE>AFTER for each
+   stat that upgrading the card would change. already-upgraded / no-change
+   cards get a plain message instead of a bogus arrow. */
+static void upgrade_line(int y, CardInst c)
+{
+    if (c.up) { txt_put(1, y, "ALREADY UPGRADED", CLR_GRAY); return; }
+    CardInst u = c; u.up = 1;
+    int x0 = 1, x = x0;
+    x = pv_stat(x, y, "DMG",  card_dmg(c),   card_dmg(u));
+    x = pv_stat(x, y, "BLK",  card_block(c), card_block(u));
+    x = pv_stat(x, y, "COST", card_cost(c),  card_cost(u));
+    x = pv_stat(x, y, "DRAW", card_draw(c),  card_draw(u));
+    x = pv_stat(x, y, "EFF",  card_spval(c), card_spval(u));
+    if (x == x0) txt_put(1, y, "NO STAT CHANGE", CLR_GRAY);
+}
+
+/* core scrolling list over an arbitrary card array. pick_mode 1 → A returns
+   the index (remove/purge). pick_mode 2 → A returns index + shows an upgrade
+   before>after preview for the selected card (SMITH/upgrade pickers). pick_mode
+   0 → view only; A zooms the highlighted card, returns -1. n==0 → returns -1. */
+int pile_browse(const CardInst *arr, int n, const char *title, int pick_mode)
+{
+    if (n == 0) return -1;
     scene_none();
     int sel = 0, top = 0;
     const int ROWS = 14;
@@ -177,14 +263,14 @@ int deck_browse(const char *title, int pick_mode)
     for (;;) {
         txt_clear(); ui_clear();
         txt_put(1, 0, title, CLR_YELLOW);
-        txt_int(25, 0, run.ndeck, CLR_GRAY);
+        txt_int(25, 0, n, CLR_GRAY);
         ui_box(0, 1, 30, 17, CLR_GRAY);
 
         if (sel < top) top = sel;
         if (sel >= top + ROWS) top = sel - ROWS + 1;
 
-        for (int r = 0; r < ROWS && top + r < run.ndeck; r++) {
-            CardInst c = run.deck[top + r];
+        for (int r = 0; r < ROWS && top + r < n; r++) {
+            CardInst c = arr[top + r];
             int y = 2 + r;
             int hi = (top + r == sel);
             if (hi) ui_fill(1, y, 28, 1, T_PANEL, CLR_BLUE);
@@ -196,16 +282,25 @@ int deck_browse(const char *title, int pick_mode)
             if (card_dmg(c))   { txt_int_at(23, y, card_dmg(c), CLR_RED); }
             else if (card_block(c)) { txt_int_at(23, y, card_block(c), CLR_BLUE); }
         }
-        /* desc line for selected */
-        txt_put(1, 18, cards[run.deck[sel].id].desc, CLR_GRAY);
-        txt_put(1, 19, pick_mode ? "A:PICK B:BACK" : "B:BACK", CLR_GRAY);
+        /* row 18: upgrade before>after in upgrade mode, else selected desc */
+        if (pick_mode == 2) upgrade_line(18, arr[sel]);
+        else txt_put(1, 18, cards[arr[sel].id].desc, CLR_GRAY);
+        txt_put(1, 19, pick_mode ? "A:PICK B:BACK" : "A:ZOOM B:BACK", CLR_GRAY);
 
         for (;;) {
             vsync(); key_poll();
-            if (key_repeat(KEY_UP) && sel > 0)              { sel--; sfx_blip(); break; }
-            if (key_repeat(KEY_DOWN) && sel < run.ndeck - 1){ sel++; sfx_blip(); break; }
+            if (key_repeat(KEY_UP) && sel > 0)         { sel--; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN) && sel < n - 1)   { sel++; sfx_blip(); break; }
             if (key_hit(KEY_B)) { sfx_bad(); return -1; }
-            if (pick_mode && key_hit(KEY_A)) { sfx_ok(); return sel; }
+            if (key_hit(KEY_A)) {
+                if (pick_mode) { sfx_ok(); return sel; }
+                sfx_ok(); card_zoom(arr[sel]); break;   /* redraw list on return */
+            }
         }
     }
+}
+
+int deck_browse(const char *title, int pick_mode)
+{
+    return pile_browse(run.deck, run.ndeck, title, pick_mode);
 }

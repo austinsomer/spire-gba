@@ -148,6 +148,7 @@ void vsync(void)
     }
     frame_count++;
     music_tick();
+    pcm_tick();
 #ifdef AUTOPLAY
     /* heartbeat: spinner top-right proves CPU alive + in vsync loop */
     {
@@ -172,7 +173,7 @@ void key_poll(void)
         case 4: case 5: keys_cur |= KEY_DOWN; break;
         case 6: keys_cur |= KEY_UP; break;
         case 7: keys_cur |= KEY_RIGHT; break;
-        case 8: keys_cur |= KEY_START; break;
+        case 8: keys_cur |= (frame_count & 16) ? KEY_START : KEY_SELECT; break;
         default: break; /* rest */
         }
     }
@@ -388,7 +389,10 @@ void bg2_clear(void)
    tiles streamed into the charblock-1 gap (63..319), palettes into text
    banks 0..3 entries 4..15 (text itself only uses entries 1..3) */
 #include "cardimg.h"
-#define CARDFACE_TILE0 176   /* 4 slots x 35 tiles = 176..315 */
+#define CARDFACE_TILE0 176   /* 5 slots x 35 tiles = 176..350 */
+
+/* slot -> BG palette bank: banks 0-3 + 6 (4/5 = HUD/relics, 9 = battle bg) */
+static const u8 face_bank[5] = { 0, 1, 2, 3, 6 };
 
 void card_face_load(int slot, int card_id)
 {
@@ -399,7 +403,7 @@ void card_face_load(int slot, int card_id)
         dst[i * 2 + 1] = src[i] >> 16;
     }
     for (int c = 0; c < 12; c++)
-        MEM_PAL_BG[slot * 16 + 4 + c] = cardimg_pal[card_id][c];
+        MEM_PAL_BG[face_bank[slot] * 16 + 4 + c] = cardimg_pal[card_id][c];
 }
 
 void card_face_stamp(int slot, int tx, int ty)
@@ -407,7 +411,51 @@ void card_face_stamp(int slot, int tx, int ty)
     int t = CARDFACE_TILE0 + slot * CARDIMG_TILES;
     for (int j = 0; j < CARDIMG_TH; j++)
         for (int i = 0; i < CARDIMG_TW; i++)
-            bg2_stamp(tx + i, ty + j, t++, slot, 0);
+            bg2_stamp(tx + i, ty + j, t++, face_bank[slot], 0);
+}
+
+/* ---- battle HUD elements + relic icons (hand zone / top bar) ----
+   tiles in the charblock-1 gap below the card faces, banks 4 + 5 */
+#define HUDIMG_DATA
+#include "hudimg.h"
+#define HUD_TILE0   63
+#define RELIC_TILE0 (HUD_TILE0 + HUDIMG_NTILES)
+#define BANK_HUD    4
+#define BANK_RELIC  5
+
+void hud_load(void)
+{
+    vu16 *dst = CHARBLOCK(1) + HUD_TILE0 * 16;
+    for (int i = 0; i < HUDIMG_NTILES * 8; i++) {
+        dst[i * 2]     = hudimg_tiles[i] & 0xFFFF;
+        dst[i * 2 + 1] = hudimg_tiles[i] >> 16;
+    }
+    dst = CHARBLOCK(1) + RELIC_TILE0 * 16;
+    for (int i = 0; i < RELICIMG_NTILES * 8; i++) {
+        dst[i * 2]     = relicimg_tiles[i] & 0xFFFF;
+        dst[i * 2 + 1] = relicimg_tiles[i] >> 16;
+    }
+    for (int c = 0; c < 12; c++) {
+        MEM_PAL_BG[BANK_HUD * 16 + 4 + c]   = hudimg_pal[c];
+        MEM_PAL_BG[BANK_RELIC * 16 + 4 + c] = relicimg_pal[c];
+    }
+}
+
+void hud_stamp(int elem, int tx, int ty)
+{
+    int t = HUD_TILE0 + hudimg_elem[elem].ofs;
+    for (int j = 0; j < hudimg_elem[elem].th; j++)
+        for (int i = 0; i < hudimg_elem[elem].tw; i++)
+            bg2_stamp(tx + i, ty + j, t++, BANK_HUD, 0);
+}
+
+void relic_stamp(int relic, int tx, int ty)
+{
+    int t = RELIC_TILE0 + relic * 4;
+    bg2_stamp(tx,     ty,     t,     BANK_RELIC, 0);
+    bg2_stamp(tx + 1, ty,     t + 1, BANK_RELIC, 0);
+    bg2_stamp(tx,     ty + 1, t + 2, BANK_RELIC, 0);
+    bg2_stamp(tx + 1, ty + 1, t + 3, BANK_RELIC, 0);
 }
 
 void ui_icon(int x, int y, int icon)   /* icon = TI_* absolute tile index */
@@ -479,30 +527,44 @@ u32 rng(void)
     return rng_state = x;
 }
 int rng_range(int n) { return n > 0 ? (int)(rng() % (u32)n) : 0; }
+u32 rng_state_get(void) { return rng_state; }
 
-/* ---- sfx: psg square ch1 + noise ch4 ---- */
+/* ---- sfx: psg square ch1 (hardware sweep) + noise ch4 ---- */
+u8 opt_music = 1, opt_sfx = 1;   /* settings menu toggles */
+
 void sfx_init(void)
 {
     REG_SOUNDCNT_X = 0x0080;   /* master on */
     REG_SOUNDCNT_L = 0xFF77;   /* full vol, all channels L+R */
-    REG_SOUNDCNT_H = 0x0002;   /* psg 100% */
+    /* psg 100% + DS A 100% L+R timer0 (music) + DS B 100% L+R timer1 (sfx) */
+    REG_SOUNDCNT_H = 0x0002 | 0x0004 | 0x0300 | 0x0008 | 0x3000 | 0x4000;
 }
 
-static void square(int freq, int env, int len)
+/* ch1 pulse. sweep = raw SOUND1CNT_L: (time<<4)|(down<<3)|shift —
+   shift n steps freq by f/2^n every time*7.8ms; 0 = no sweep.
+   duty 0-3 = 12.5/25/50/75%. len in 1/256s units (1..63). */
+static void ch1(int vol, int envstep, int duty, int len, int sweep, int freq)
 {
-    REG_SOUND1CNT_L = 0x0008;                 /* no sweep */
-    REG_SOUND1CNT_H = (u16)(0x4000 | (env << 12) | 0x0100 | (63 - len)); /* duty 50%, env dec */
+    REG_SOUND1CNT_L = (u16)sweep;
+    REG_SOUND1CNT_H = (u16)((vol << 12) | (envstep << 8) | (duty << 6) |
+                            (64 - len));
     REG_SOUND1CNT_X = (u16)(0x8000 | 0x4000 | (2048 - 131072 / freq));
 }
 
-void sfx_blip(void)  { square(880, 8, 8); }
-void sfx_ok(void)    { square(1320, 10, 12); }
-void sfx_bad(void)   { square(220, 10, 14); }
-void sfx_heal(void)  { square(660, 10, 20); }
-void sfx_block(void) { square(440, 9, 10); }
-
+void sfx_blip(void)  { if (!opt_sfx) return; ch1(9, 1, 1, 6, 0x00, 1245); }
+/* confirm: rising chirp */
+void sfx_ok(void)    { if (!opt_sfx) return; ch1(11, 2, 1, 22, 0x23, 660); }
+/* cancel/error: falling womp */
+void sfx_bad(void)   { if (!opt_sfx) return; ch1(12, 3, 2, 30, 0x3B, 330); }
+/* heal: slow shimmer upward */
+void sfx_heal(void)  { if (!opt_sfx) return; ch1(9, 5, 1, 45, 0x42, 784); }
+/* impact family routes to PCM samples on FIFO B (see tools/mksfx.py);
+   hit alternates thud/slash for variety */
+void sfx_block(void) { if (!opt_sfx) return; sfxpcm_play(SFXP_CLANG); }
 void sfx_hit(void)
 {
-    REG_SOUND4CNT_L = (u16)(0xA000 | (63 - 20)); /* env */
-    REG_SOUND4CNT_H = 0x8034;                    /* trigger, noise params */
+    static u8 alt;
+    if (!opt_sfx) return;
+    sfxpcm_play((alt ^= 1) ? SFXP_HIT : SFXP_SLASH);
 }
+void sfx_coin(void)  { if (!opt_sfx) return; sfxpcm_play(SFXP_COIN); }

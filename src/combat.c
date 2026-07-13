@@ -1,6 +1,7 @@
 #include "cards.h"
 #include "sprites.h"
 #include "bgtiles.h"
+#include "hudimg.h"
 
 /* ---------- encounters ---------- */
 /* ids match game.h usage: normals, elites, bosses */
@@ -224,12 +225,24 @@ static int first_alive(void)
 
 /* ---------- damage ---------- */
 
+/* hit events queued during resolution, consumed by anim_hits():
+   tgt = enemy index or -1 = player, dmg = hp lost */
+static struct { s8 tgt; u8 dmg; } hitq[12];
+static int nhitq;
+
+static void queue_hit(int tgt, int dmg)
+{
+    if (nhitq < 12 && dmg > 0)
+        hitq[nhitq++] = (typeof(hitq[0])){ (s8)tgt, dmg > 255 ? 255 : (u8)dmg };
+}
+
 static void hurt_player(int dmg)
 {
     if (dmg <= 0) return;
     if (pl.block >= dmg) { pl.block -= dmg; sfx_block(); return; }
     dmg -= pl.block; pl.block = 0;
     run.hp -= dmg;
+    queue_hit(-1, dmg);
     sfx_hit();
 }
 
@@ -256,6 +269,7 @@ static void hit_enemy(Enemy *e, int dmg)
     if (e->block >= dmg) { e->block -= dmg; sfx_block(); return; }
     dmg -= e->block; e->block = 0;
     e->hp -= dmg;
+    queue_hit((int)(e - en), dmg);
     sfx_hit();
     if (e->id == EN_LAGAVULIN && e->flag) { e->flag = 0; roll_move(e); }
     if (e->hp <= 0) { e->hp = 0; e->alive = 0; }
@@ -429,17 +443,17 @@ static const u8 species_spr[N_ENEMIES] = {
     [EN_HEXAGHOST] = SPR_HEXAGHOST,
 };
 
-/* battle stage: player sprite left (oam 5), enemies right (oam 0..2).
-   sprites stand at y=72 (feet on floor row 13). enemy i at px 128+i*36. */
+/* battle stage: arena band y16-95, floor oval lit center ~y56-95.
+   player sprite left (oam 5), enemies right (oam 0..2), feet at y88. */
 #define EN_X(i) (128 + (i) * 40)
-#define STAGE_Y 64   /* feet+shadows end at y104 = top of the card row */
+#define STAGE_Y 56   /* sprite top; feet at y88, hp bar row 11 (y88-95) */
 #define OAM_PLAYER 5
 #define OAM_SHADOW0 6           /* 6..9: player + 3 enemy shadows */
 
-/* framed hp bar with centered numbers over it */
-static void hp_bar_top(int x, int w, int hp, int maxhp)
+/* framed hp bar with centered hp/max numbers over it */
+static void hp_bar_at(int x, int y, int w, int hp, int maxhp)
 {
-    ui_bar(x, 0, w, hp, maxhp, CLR_RED);
+    ui_bar(x, y, w, hp, maxhp, CLR_RED);
     char b[10]; int i = 0, v = hp;
     /* build "hp/max" */
     char tmp[10]; int n = 0;
@@ -449,7 +463,7 @@ static void hp_bar_top(int x, int w, int hp, int maxhp)
     do { tmp[n++] = '0' + v % 10; v /= 10; } while (v);
     while (n) b[i++] = tmp[--n];
     b[i] = 0;
-    txt_put(x + (w - i) / 2, 0, b, CLR_WHITE);
+    txt_put(x + (w - i) / 2, y, b, CLR_WHITE);
 }
 
 static void status_line(int *y, int icon, const char *label, int val, int clr)
@@ -465,7 +479,6 @@ static void status_line(int *y, int icon, const char *label, int val, int clr)
 
 static void draw_enemies(int cursor, int targeting)
 {
-    char b[12];
     int focus = targeting ? cursor : first_alive();
     for (int i = 0; i < nen; i++) {
         Enemy *e = &en[i];
@@ -482,40 +495,44 @@ static void draw_enemies(int cursor, int targeting)
             obj_show(OAM_SHADOW0 + 1 + i, SPR_SHADOW, EN_X(i), STAGE_Y + 8);
             obj_show(i, species_spr[e->id], EN_X(i), STAGE_Y);
         }
-        /* intent above sprite: icon + numbers (higher for 2x bosses) */
-        int iy = is_boss ? 4 : 7;
+        /* 16x16 intent icon + numbers above sprite (higher for 2x bosses) */
+        int iy = is_boss ? 2 : 4;
         if (e->mv.kind == MV_ATK) {
             int dmg = e->mv.dmg + e->str;
             if (e->weak) dmg = dmg * 3 / 4;
             if (pl.vuln) dmg = dmg * 3 / 2;
             if (dmg < 0) dmg = 0;
-            ui_icon(cx, iy, TI_ATK);
-            int xx = txt_int_at(cx + 1, iy, dmg, CLR_ORANGE);
+            hud_stamp(H_ATK, cx, iy);
+            int xx = txt_int_at(cx + 2, iy + 1, dmg, CLR_ORANGE);
             if (e->mv.hits > 1) {
-                txt_putc(xx, iy, 'X', CLR_ORANGE);
-                txt_int(xx + 1, iy, e->mv.hits, CLR_ORANGE);
+                txt_putc(xx, iy + 1, 'X', CLR_ORANGE);
+                txt_int(xx + 1, iy + 1, e->mv.hits, CLR_ORANGE);
             }
-        } else if (e->mv.kind == MV_DEF)  ui_icon(cx + 1, iy, TI_DEF);
-        else if (e->mv.kind == MV_BUF)    ui_icon(cx + 1, iy, TI_BUFF);
-        else if (e->mv.kind == MV_SLEEP)  txt_put(cx, iy, "ZZZ", CLR_GRAY);
-        else                              ui_icon(cx + 1, iy, TI_DEBUFF);
-        if (targeting && i == cursor) txt_putc(cx - 1, 7, '>', CLR_YELLOW);
-        /* mini hp bar under sprite; statuses above intent
-           (row 12: rows 13+ belong to the card faces) */
-        ui_bar(cx, 12, 4, e->hp, e->maxhp, CLR_RED);
+        } else if (e->mv.kind == MV_DEF)  hud_stamp(H_DEF, cx, iy);
+        else if (e->mv.kind == MV_BUF)    hud_stamp(H_BUFF, cx, iy);
+        else if (e->mv.kind == MV_SLEEP)  txt_put(cx, iy + 1, "ZZZ", CLR_GRAY);
+        else                              hud_stamp(H_DEBUFF, cx, iy);
+        /* target arrow above the intent */
+        if (targeting && i == cursor) hud_stamp(H_TARGET, cx, iy - 2);
+        /* framed hp bar under sprite, in-arena (hp only: 3 bars must not
+           collide in the sentry fight); statuses above sprite */
+        ui_bar(cx, 11, 4, e->hp, e->maxhp, CLR_RED);
+        {
+            int v = e->hp, dg = v > 99 ? 3 : v > 9 ? 2 : 1;
+            txt_int(cx + (4 - dg) / 2, 11, v, CLR_WHITE);
+        }
         int sx = cx;
         if (e->block) { txt_putc(sx, 6, 'B', CLR_BLUE); sx = txt_int_at(sx+1, 6, e->block, CLR_BLUE); }
         if (e->str > 0) { txt_putc(sx, 6, 'S', CLR_RED); sx = txt_int_at(sx+1, 6, e->str, CLR_RED); }
         if (e->weak)  { txt_putc(sx, 6, 'W', CLR_GREEN); sx = txt_int_at(sx+1, 6, e->weak, CLR_GREEN); }
         if (e->vuln)  { txt_putc(sx, 6, 'V', CLR_PURPLE); sx = txt_int_at(sx+1, 6, e->vuln, CLR_PURPLE); }
-        (void)b;
     }
     for (int i = nen; i < 3; i++) { obj_hide(i); obj_hide(OAM_SHADOW0 + 1 + i); }
-    /* top-right framed bar + name for focused enemy */
+    /* focused enemy name, right-aligned over the dark arena top */
     if (focus >= 0) {
-        hp_bar_top(20, 8, en[focus].hp, en[focus].maxhp);
-        txt_put(30 - 9, 1, species[en[focus].id].name,
-                targeting ? CLR_YELLOW : CLR_WHITE);
+        const char *nm = species[en[focus].id].name;
+        int len = 0; while (nm[len]) len++;
+        txt_put(30 - len, 2, nm, targeting ? CLR_YELLOW : CLR_WHITE);
     }
 }
 
@@ -523,86 +540,203 @@ static void draw_player(void)
 {
     obj_show(OAM_SHADOW0, SPR_SHADOW, 24, STAGE_Y + 8);
     obj_show(OAM_PLAYER, SPR_IRONCLAD, 24, STAGE_Y);
-    hp_bar_top(2, 8, run.hp, run.maxhp);
-    /* status lines with icons, from row 1 */
-    int y = 1;
+    /* framed hp bar under sprite, in-arena */
+    hp_bar_at(2, 11, 6, run.hp, run.maxhp);
+    /* status lines with icons, top-left dark edge */
+    int y = 2;
     status_line(&y, TI_DEF,    "BLOCK ",    pl.block, CLR_BLUE);
     status_line(&y, TI_BUFF,   "STRENGTH+", pl.str, CLR_YELLOW);
     status_line(&y, TI_DEBUFF, "WEAK ",     pl.weak, CLR_GREEN);
     status_line(&y, TI_DEBUFF, "VULN ",     pl.vuln, CLR_PURPLE);
-    if (y == 1) y++;
     status_line(&y, TI_BUFF,   "THORNS ",   pl.thorns, CLR_ORANGE);
     status_line(&y, TI_BUFF,   "METALLIC ", pl.metallicize, CLR_CYAN);
-    /* energy orb bottom-left */
-    ui_tile(0, 17, T_ENERGY, CLR_YELLOW);
-    int xx = txt_int_at(0, 18, pl.energy, CLR_YELLOW);
-    txt_putc(xx, 18, '/', CLR_GRAY);
-    txt_putc(xx + 1, 18, '3', CLR_GRAY);
-    /* draw/discard piles tiny, bottom-left under orb */
-    xx = txt_int_at(0, 19, piles.ndraw, CLR_CYAN);
-    txt_putc(xx, 19, '+', CLR_GRAY);
-    txt_int(xx + 1, 19, piles.ndiscard, CLR_ORANGE);
+    /* hand-zone HUD, left: energy orb + count, draw pile + count */
+    hud_stamp(H_ENERGY, 0, 13);
+    txt_int_at(0, 14, pl.energy, CLR_YELLOW);
+    txt_putc(1, 14, '/', CLR_WHITE);
+    txt_putc(2, 14, '3', CLR_WHITE);
+    hud_stamp(H_DRAWPILE, 0, 17);
+    txt_int(2, 18, piles.ndraw, CLR_CYAN);
+    txt_putc(3, 17, 'L', CLR_CYAN);          /* L opens draw pile */
+    /* right: end turn button + discard pile */
+    hud_stamp(H_ENDTURN, 26, 13);
+    txt_putc(25, 14, 'R', CLR_GRAY);
+    hud_stamp(H_DISCARDPILE, 28, 17);
+    txt_int(26, 18, piles.ndiscard, CLR_ORANGE);
+    txt_put(25, 17, "UP", CLR_ORANGE);       /* UP opens discard pile */
+    /* exhaust mini-count in the left gutter (DOWN opens it) */
+    txt_put(0, 15, "EX", CLR_GRAY);
+    txt_int(2, 15, piles.nexhaust, CLR_GRAY);
+    txt_put(0, 16, "DN", CLR_GRAY);
 }
 
-/* big card faces: 4 visible slots, 40x56 art (5x7 tiles) streamed onto BG2
-   at cols 4/10/16/22, rows 13-19 */
-static u8 face_loaded[4];   /* card id + 1 per slot, 0 = none */
+/* hand: 5 visible slots, 40x56 faces overlapped 8px (cols 4/8/12/16/20),
+   stamped left-to-right so the right card overlaps; the selected card is
+   stamped last (fully visible) and raised 8px out of the clipped row */
+static u8 face_loaded[5];   /* card id + 1 per slot, 0 = none */
+
+static void stamp_card(int s, int i, int sel)
+{
+    int x = 4 + s * 4, row = (i == sel) ? 13 : 14;
+    CardInst c = piles.hand[i];
+    const Card *cd = &cards[c.id];
+    int can = card_cost(c) <= pl.energy && cd->sp != SP_UNPLAYABLE;
+    if (cd->cost == COST_X) can = 1;
+    if (face_loaded[s] != c.id + 1) {
+        card_face_load(s, c.id);
+        face_loaded[s] = c.id + 1;
+    }
+    card_face_stamp(s, x, row);
+    /* live cost orb over the baked one (upgrade/energy aware) */
+    ui_tile(x, row, T_ENERGY, CLR_YELLOW);
+    if (cd->cost == COST_X) txt_putc(x, row, 'X', CLR_WHITE);
+    else txt_int(x, row, card_cost(c), can ? CLR_WHITE : CLR_DKRED);
+    if (c.up) txt_putc(x + 3, row, '+', CLR_GREEN);
+    /* live dmg/blk in the text box of the face */
+    if (card_dmg(c) || cd->sp == SP_BODYSLAM) {
+        int d = cd->sp == SP_BODYSLAM ? pl.block
+              : card_dmg(c) + (cd->sp == SP_HEAVYBLADE ? pl.str * card_spval(c) : pl.str);
+        txt_int(x + 2, row + 5, d, CLR_WHITE);
+    } else if (card_block(c)) txt_int(x + 2, row + 5, card_block(c), CLR_WHITE);
+}
+
+/* played-card pop: restamp it 8px above the raised row with a flashing
+   cost orb, so plays read before the hit lands (~10 frames) */
+static void anim_card_play(int sel)
+{
+    int top = (sel >= 5) ? sel - 4 : 0;
+    int s = sel - top, x = 4 + s * 4;
+    card_face_stamp(s, x, 12);
+    bg2_fill(x, 19, 5, 1, 0);           /* row it vacated */
+    for (int f = 0; f < 10; f++) {
+        ui_tile(x, 12, T_ENERGY, (f & 2) ? CLR_WHITE : CLR_YELLOW);
+        vsync();
+    }
+}
 
 static void draw_hand(int sel)
 {
     int top = 0;
-    if (sel >= 4) top = sel - 3;
-    for (int s = 0; s < 4 && top + s < piles.nhand; s++) {
-        int i = top + s, x = 4 + s * 6;
-        CardInst c = piles.hand[i];
-        const Card *cd = &cards[c.id];
-        int hi = (i == sel);
-        int can = card_cost(c) <= pl.energy && cd->sp != SP_UNPLAYABLE;
-        if (cd->cost == COST_X) can = 1;
-        if (face_loaded[s] != c.id + 1) {
-            card_face_load(s, c.id);
-            face_loaded[s] = c.id + 1;
-        }
-        card_face_stamp(s, x, 13);
-        if (hi) {
-            ui_box(x, 13, 5, 7, CLR_YELLOW);
-            for (int cy = 14; cy <= 18; cy++)   /* drop box fill: art shows */
-                for (int cx = x + 1; cx <= x + 3; cx++)
-                    ui_tile(cx, cy, 0, 0);
-        }
-        /* live cost orb over the baked one (upgrade/energy aware) */
-        ui_tile(x, 13, T_ENERGY, CLR_YELLOW);
-        if (cd->cost == COST_X) txt_putc(x, 13, 'X', CLR_WHITE);
-        else txt_int(x, 13, card_cost(c), can ? CLR_WHITE : CLR_DKRED);
-        if (c.up) txt_putc(x + 4, 13, '+', CLR_GREEN);
-        /* live dmg/blk in the text box of the face */
-        if (card_dmg(c) || cd->sp == SP_BODYSLAM) {
-            int d = cd->sp == SP_BODYSLAM ? pl.block
-                  : card_dmg(c) + (cd->sp == SP_HEAVYBLADE ? pl.str * card_spval(c) : pl.str);
-            txt_int(x + 2, 18, d, CLR_WHITE);
-        } else if (card_block(c)) txt_int(x + 2, 18, card_block(c), CLR_WHITE);
-    }
-    if (piles.nhand == 0) txt_put(12, 17, "NO CARDS", CLR_GRAY);
+    if (sel >= 5) top = sel - 4;
+    for (int s = 0; s < 5 && top + s < piles.nhand; s++)
+        if (top + s != sel) stamp_card(s, top + s, sel);
+    if (sel - top >= 0 && sel < piles.nhand)
+        stamp_card(sel - top, sel, sel);
+    if (piles.nhand == 0) txt_put(11, 16, "NO CARDS", CLR_GRAY);
     if (top > 0) txt_putc(3, 16, '<', CLR_YELLOW);
-    if (top + 4 < piles.nhand) txt_putc(27, 16, '>', CLR_YELLOW);
+    if (top + 5 < piles.nhand) txt_putc(25, 16, '>', CLR_YELLOW);
+}
+
+/* replace a sprite at its stage position with a horizontal nudge */
+static void nudge_sprite(int tgt, int dx)
+{
+    if (tgt < 0) {
+        obj_show(OAM_PLAYER, SPR_IRONCLAD, 24 + dx, STAGE_Y);
+        return;
+    }
+    Enemy *e = &en[tgt];
+    if (!e->alive) return;
+    int is_boss = (e->id == EN_SLIMEBOSS || e->id == EN_GUARDIAN ||
+                   e->id == EN_HEXAGHOST);
+    if (is_boss)
+        obj_show_big(tgt, species_spr[e->id], EN_X(tgt) - 16 + dx, STAGE_Y - 32);
+    else
+        obj_show(tgt, species_spr[e->id], EN_X(tgt) + dx, STAGE_Y);
+}
+
+/* consume hitq: ~14 frames of sprite shake + floating damage numbers,
+   backdrop flash on big hits. Caller redraws state first. */
+#ifdef JUICETEST
+#define ANIM_F 90            /* stretched for screenshot verification */
+#define ANIM_STEP 30
+#else
+#define ANIM_F 14
+#define ANIM_STEP 5
+#endif
+
+static void anim_hits(void)
+{
+    if (!nhitq) return;
+    int big = 0;
+    for (int i = 0; i < nhitq; i++) if (hitq[i].dmg >= 10) big = 1;
+    if (big) battle_flash(1);
+    for (int f = 0; f < ANIM_F; f++) {
+        vsync();
+        if (f == 2 && big) battle_flash(0);
+        int row = 8 - f / ANIM_STEP;            /* drift up: 8 -> 7 -> 6 */
+        int clr = f < ANIM_STEP ? CLR_WHITE
+                : f < 2 * ANIM_STEP ? CLR_ORANGE : CLR_GRAY;
+        int pcol = 3, ecol[3] = { -1, -1, -1 };
+        for (int i = 0; i < nhitq; i++) {
+            int tgt = hitq[i].tgt;
+            /* shake: decaying alternating nudge */
+            int amp = f < 4 ? 2 : f < 8 ? 1 : 0;
+            nudge_sprite(tgt, (f & 1) ? amp : -amp);
+            /* number column: player stacks rightward, enemies over sprite */
+            int col;
+            if (tgt < 0) { col = pcol; pcol += 3; }
+            else {
+                if (ecol[tgt] < 0) ecol[tgt] = EN_X(tgt) / 8 + 1;
+                col = ecol[tgt]; ecol[tgt] += 3;
+            }
+            if (f == ANIM_STEP || f == 2 * ANIM_STEP)
+                txt_put(col, row + 1, "   ", CLR_WHITE);
+            txt_int(col, row, hitq[i].dmg, clr);
+        }
+    }
+    /* erase all number rows and settle sprites */
+    for (int r = 6; r <= 8; r++)
+        for (int c = 0; c < 30; c++) txt_putc(c, r, ' ', CLR_WHITE);
+    for (int i = 0; i < nhitq; i++) nudge_sprite(hitq[i].tgt, 0);
+    nhitq = 0;
+}
+
+/* SELECT in combat drinks the held potion */
+static void use_potion(void)
+{
+    switch (run.potion) {
+    case POT_HEAL:
+        run.hp += 12;
+        if (run.hp > run.maxhp) run.hp = run.maxhp;
+        sfx_heal(); break;
+    case POT_STR:    pl.str += 2;    sfx_ok();    break;
+    case POT_BLOCK:  pl.block += 12; sfx_block(); break;
+    case POT_ENERGY: pl.energy += 2; sfx_ok();    break;
+    default: return;
+    }
+    run.potion = POT_NONE;
 }
 
 static void draw_all(int sel, int cursor, int targeting)
 {
     txt_clear(); ui_clear();
-    scene_battle();                 /* restore bg (card art stamps over it) */
+    scene_battle_refresh();         /* restore bg (stamps draw over it) */
+    /* top bar: owned relics left, potion chip, coin + gold right */
+    for (int k = 0; k < run.nrelics && k < 8; k++)
+        relic_stamp(run.relics[k], k * 2, 0);
+    if (run.potion) {
+        txt_put(18, 0, potion_tags[run.potion], CLR_GREEN);
+        txt_put(18, 1, "SEL", CLR_GRAY);
+    }
+    hud_stamp(H_COIN, 24, 0);
+    txt_int(27, 1, run.gold, CLR_YELLOW);
     draw_enemies(cursor, targeting);
     draw_player();
     draw_hand(sel);
-    /* row 12 left: selected card full name (cards own rows 13-19) */
-    if (piles.nhand > 0 && sel < piles.nhand) {
+    /* row 12 message line: card name + desc, or targeting hint */
+    if (targeting) {
+        txt_put(8, 12, "A:ATTACK  B:CANCEL", CLR_YELLOW);
+    } else if (piles.nhand > 0 && sel < piles.nhand) {
         char nb[16];
         card_name(piles.hand[sel], nb);
-        txt_put(0, 12, nb, CLR_WHITE);
+        int nl = 0; while (nb[nl]) nl++;
+        const char *d = cards[piles.hand[sel].id].desc;
+        int dl = 0; while (d[dl]) dl++;
+        int x = (30 - (nl + 1 + dl)) / 2;
+        if (x < 0) x = 0;
+        txt_put(x, 12, nb, CLR_YELLOW);
+        txt_put(x + nl + 1, 12, d, CLR_GRAY);
     }
-    /* hints top-center, between the two hp bars */
-    if (targeting) txt_put(11, 0, "A:GO B:NO", CLR_GRAY);
-    else           txt_put(12, 0, "R:END", CLR_GRAY);
 }
 
 /* ---------- start / end of turn ---------- */
@@ -643,7 +777,7 @@ static void end_enemy_turn(void)
 void combat_screen(int encounter)
 {
     battle_bg_load();
-    for (int i = 0; i < 4; i++) face_loaded[i] = 0;   /* cb1 was reloaded */
+    for (int i = 0; i < 5; i++) face_loaded[i] = 0;   /* cb1 was reloaded */
     scene_battle();
     setup_encounter(encounter);
     piles_init();
@@ -676,6 +810,7 @@ void combat_screen(int encounter)
 #ifdef AUTOPLAY
         {
             for (int f = 0; f < 15; f++) vsync();
+            if (run.potion) use_potion();   /* bot drinks immediately */
             act = 2;
             for (int i = 0; i < piles.nhand; i++) {
                 CardInst c = piles.hand[i];
@@ -693,10 +828,38 @@ void combat_screen(int encounter)
             if (key_repeat(KEY_RIGHT) && sel < piles.nhand - 1) { sel++; sfx_blip(); break; }
             if (key_hit(KEY_A) && piles.nhand > 0) { act = 1; break; }
             if (key_hit(KEY_R)) { act = 2; break; }
+            if (key_hit(KEY_SELECT) && run.potion) { use_potion(); break; }
             if (key_hit(KEY_B)) {
                 obj_hide_all(); scene_none();
                 deck_browse("DECK", 0);
+                for (int i = 0; i < 5; i++) face_loaded[i] = 0;
                 break;
+            }
+            /* inspect combat piles: L=draw, UP=discard, DOWN=exhaust.
+               zoom (A in the list) reloads face slot 0, so reset the hand
+               face cache on return, then break to recompose the battle. */
+            if (key_hit(KEY_L) && piles.ndraw) {
+                obj_hide_all(); scene_none();
+                pile_browse(piles.draw, piles.ndraw, "DRAW PILE", 0);
+                for (int i = 0; i < 5; i++) face_loaded[i] = 0;
+                break;
+            }
+            if (key_hit(KEY_UP) && piles.ndiscard) {
+                obj_hide_all(); scene_none();
+                pile_browse(piles.discard, piles.ndiscard, "DISCARD", 0);
+                for (int i = 0; i < 5; i++) face_loaded[i] = 0;
+                break;
+            }
+            if (key_hit(KEY_DOWN) && piles.nexhaust) {
+                obj_hide_all(); scene_none();
+                pile_browse(piles.exhaust, piles.nexhaust, "EXHAUST", 0);
+                for (int i = 0; i < 5; i++) face_loaded[i] = 0;
+                break;
+            }
+            if (key_hit(KEY_START)) {
+                obj_hide_all();
+                if (pause_menu()) return;   /* SAVE & QUIT: gstate = ST_TITLE */
+                break;                       /* recompose battle screen */
             }
         }
 
@@ -733,13 +896,21 @@ void combat_screen(int encounter)
                     if (done == 2) continue;
                 }
             }
+            {
+                const Card *cd = &cards[c.id];
+                if (cd->sp != SP_UNPLAYABLE &&
+                    (cd->cost == COST_X || card_cost(c) <= pl.energy))
+                    anim_card_play(sel);
+            }
             play_card(sel, target);
+            anim_hits();
         } else if (act == 2) {
             end_player_turn();
             draw_all(sel, -1, 0);
             /* brief pause so player sees enemy act */
             for (int f = 0; f < 20; f++) vsync();
             enemy_turn();
+            anim_hits();
             end_enemy_turn();
             if (run.hp > 0) start_player_turn();
         }

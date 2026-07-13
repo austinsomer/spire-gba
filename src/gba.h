@@ -68,6 +68,24 @@ typedef volatile u32 vu32;
 #define KEY_L           0x0200
 #define KEY_ANY         0x03FF
 
+/* DMA1/2 (DirectSound FIFO A/B feeds) + timers 0/1 (sample clocks) */
+#define REG_DMA1SAD     REG32(0x040000BC)
+#define REG_DMA1DAD     REG32(0x040000C0)
+#define REG_DMA1CNT_H   REG(0x040000C6)
+#define REG_DMA2SAD     REG32(0x040000C8)
+#define REG_DMA2DAD     REG32(0x040000CC)
+#define REG_DMA2CNT_H   REG(0x040000D2)
+#define REG_TM0CNT_L    REG(0x04000100)
+#define REG_TM0CNT_H    REG(0x04000102)
+#define REG_TM1CNT_L    REG(0x04000104)
+#define REG_TM1CNT_H    REG(0x04000106)
+#define FIFO_A_ADDR     0x040000A0
+#define FIFO_B_ADDR     0x040000A4
+
+/* cart SRAM (8-bit bus: byte access only) + waitstate control */
+#define MEM_SRAM        ((vu8 *)0x0E000000)
+#define REG_WAITCNT     REG(0x04000204)
+
 /* interrupts */
 #define REG_IE          REG(0x04000200)
 #define REG_IF          REG(0x04000202)
