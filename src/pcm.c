@@ -56,6 +56,8 @@ void pcm_stop(void)
     playing = 0;
     cur_trk = -1;
     REG_DMA1CNT_H = 0;
+    REG_TM0CNT_H = 0;                   /* stop clock so FIFO A can't underrun-buzz */
+    REG_SOUNDCNT_H |= 0x0800;           /* flush FIFO A */
 }
 
 /* opt_music flipped in the settings menu */
@@ -69,7 +71,10 @@ void pcm_gate(void)
         REG_TM0CNT_H = 0x0080;
         dma_start(cur_pcm + pos);       /* resume where it paused */
     } else {
-        REG_DMA1CNT_H = 0;
+        REG_DMA1CNT_H = 0;              /* stop DMA feeding FIFO A */
+        REG_TM0CNT_H = 0;               /* stop the sample clock — else the FIFO
+                                           underruns and buzzes the last byte */
+        REG_SOUNDCNT_H |= 0x0800;       /* reset/flush FIFO A to silence */
     }
 }
 
@@ -109,9 +114,15 @@ void sfxpcm_play(int id)
 
 void pcm_tick(void)
 {
-    if (sfxb_left) {                    /* one-shot end: stop DMA2 */
+    if (sfxb_left) {                    /* one-shot end: stop FIFO B cleanly */
         sfxb_left = sfxb_left > PCM_PERFRAME ? sfxb_left - PCM_PERFRAME : 0;
-        if (!sfxb_left) REG_DMA2CNT_H = 0;
+        if (!sfxb_left) {
+            REG_DMA2CNT_H = 0;          /* stop DMA */
+            REG_TM1CNT_H = 0;           /* stop the clock — else FIFO B underruns
+                                           and buzzes the last byte (heard after an
+                                           isolated sfx like reward coin) */
+            REG_SOUNDCNT_H |= 0x8000;   /* flush FIFO B to silence */
+        }
     }
     if (!playing || !opt_music) return;
     pos += PCM_PERFRAME;

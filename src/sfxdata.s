@@ -30,10 +30,10 @@ sfxpcm_heal:
     .incbin "assets/sfx/heal.pcm"
     .global sfxpcm_heal_len
     .align 2
-sfxpcm_heal_len: .word 4208
+sfxpcm_heal_len: .word 7392
     .global sfxpcm_card
 sfxpcm_card:
     .incbin "assets/sfx/card.pcm"
     .global sfxpcm_card_len
     .align 2
-sfxpcm_card_len: .word 1392
+sfxpcm_card_len: .word 3456

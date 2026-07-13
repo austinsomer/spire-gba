@@ -36,7 +36,8 @@ rng = np.random.default_rng(11)
 # friendly source-file aliases -> internal slot name
 ALIASES = {'attack': 'hit', 'swing': 'slash',
            'block': 'clang', 'shield': 'clang', 'gold': 'coin',
-           'restore': 'heal', 'play': 'card', 'flip': 'card'}
+           'restore': 'heal', 'play': 'card', 'flip': 'card',
+           'card-play': 'card', 'cardplay': 'card'}
 
 
 def env(n, decay):
