@@ -1,5 +1,7 @@
 tools/__pycache__/
 assets/_raw/
+assets/sfx/source/*
+!assets/sfx/source/README.md
 .DS_Store
 **/.DS_Store
 build/

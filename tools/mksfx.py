@@ -13,6 +13,8 @@ slot (any format ffmpeg reads: wav/mp3/aiff/flac/...), then run this tool.
   slash -> attack variety            alias: swing
   clang -> gain/absorb Block         alias: block, shield
   coin  -> gold gained / purchase    alias: gold
+  heal  -> healing                   alias: restore
+  card  -> card played               alias: play, flip
 Missing slots keep their synthesized default. Keep sounds short and punchy;
 they get crushed to 8-bit/13379Hz mono and capped to ~0.6s.
 
@@ -33,7 +35,8 @@ rng = np.random.default_rng(11)
 
 # friendly source-file aliases -> internal slot name
 ALIASES = {'attack': 'hit', 'swing': 'slash',
-           'block': 'clang', 'shield': 'clang', 'gold': 'coin'}
+           'block': 'clang', 'shield': 'clang', 'gold': 'coin',
+           'restore': 'heal', 'play': 'card', 'flip': 'card'}
 
 
 def env(n, decay):
@@ -85,6 +88,27 @@ def slash():
     return y * env(n, 0.05) * 1.4
 
 
+def heal():
+    n = int(SR * 0.28)                               # rising shimmer + a fifth
+    f = np.linspace(660, 990, n)
+    x = np.sin(2 * np.pi * np.cumsum(f) / SR) * 0.5
+    x += np.sin(2 * np.pi * np.cumsum(f * 1.5) / SR) * 0.22
+    atk = np.minimum(1.0, np.arange(n) / (SR * 0.02))
+    return x * atk * env(n, 0.13) * 0.85
+
+
+def card():
+    n = int(SR * 0.07)                               # soft paper swish
+    x = rng.standard_normal(n)
+    a = 0.0
+    y = np.zeros(n)
+    for i in range(n):                               # bandish sweep up
+        k = 0.15 + 0.6 * i / n
+        a += k * (x[i] - a)
+        y[i] = a
+    return y * env(n, 0.028) * 1.2
+
+
 # ---- import a dropped audio file for a slot, if present ----
 def find_source(slot):
     names = [slot] + [a for a, s in ALIASES.items() if s == slot]
@@ -124,7 +148,8 @@ def emit(name, x):
 
 
 def main():
-    slots = (('hit', hit), ('clang', clang), ('coin', coin), ('slash', slash))
+    slots = (('hit', hit), ('clang', clang), ('coin', coin), ('slash', slash),
+             ('heal', heal), ('card', card))
     lens = []
     for nm, synth in slots:
         src = find_source(nm)

@@ -93,7 +93,8 @@ void sfx_ok(void);           /* confirm (rising chirp) */
 void sfx_hit(void);          /* impact (thump + crunch) */
 void sfx_block(void);        /* metallic clank */
 void sfx_bad(void);          /* error/cancel (falling womp) */
-void sfx_heal(void);
+void sfx_heal(void);         /* healing */
+void sfx_card(void);         /* card played */
 void sfx_coin(void);         /* gold gained / purchase */
 
 /* sound settings (persist for the session; toggled in settings menu) */
@@ -111,7 +112,7 @@ void pcm_gate(void);         /* apply opt_music (pause/resume) */
 void pcm_tick(void);         /* call once per vsync */
 
 /* one-shot sampled SFX on FIFO B (impacts; nav sounds stay PSG) */
-enum { SFXP_HIT, SFXP_CLANG, SFXP_COIN, SFXP_SLASH };
+enum { SFXP_HIT, SFXP_CLANG, SFXP_COIN, SFXP_SLASH, SFXP_HEAL, SFXP_CARD };
 void sfxpcm_play(int id);
 
 /* ---- music: PSG tracker (ch2 pulse lead, ch3 wave bass, ch4 noise drums) ----

@@ -556,10 +556,10 @@ void sfx_blip(void)  { /* navigation is silent (nav beep removed) */ }
 void sfx_ok(void)    { if (!opt_sfx) return; ch1(11, 2, 1, 22, 0x23, 660); }
 /* cancel/error: falling womp */
 void sfx_bad(void)   { if (!opt_sfx) return; ch1(12, 3, 2, 30, 0x3B, 330); }
-/* heal: slow shimmer upward */
-void sfx_heal(void)  { if (!opt_sfx) return; ch1(9, 5, 1, 45, 0x42, 784); }
-/* impact family routes to PCM samples on FIFO B (see tools/mksfx.py);
+/* sampled families route to PCM samples on FIFO B (see tools/mksfx.py);
    hit alternates thud/slash for variety */
+void sfx_heal(void)  { if (!opt_sfx) return; sfxpcm_play(SFXP_HEAL); }
+void sfx_card(void)  { if (!opt_sfx) return; sfxpcm_play(SFXP_CARD); }
 void sfx_block(void) { if (!opt_sfx) return; sfxpcm_play(SFXP_CLANG); }
 void sfx_hit(void)
 {

@@ -76,9 +76,10 @@ void pcm_gate(void)
 /* ---- one-shot SFX samples on FIFO B (timer 1 + DMA2) ----
    Impact sounds synthesized by tools/mksfx.py. Frame-counted stop; the
    samples end in 2 frames of silence so the overrun is inaudible. */
-extern const s8 sfxpcm_hit[], sfxpcm_clang[], sfxpcm_coin[], sfxpcm_slash[];
+extern const s8 sfxpcm_hit[], sfxpcm_clang[], sfxpcm_coin[], sfxpcm_slash[],
+                sfxpcm_heal[], sfxpcm_card[];
 extern const u32 sfxpcm_hit_len, sfxpcm_clang_len, sfxpcm_coin_len,
-                 sfxpcm_slash_len;
+                 sfxpcm_slash_len, sfxpcm_heal_len, sfxpcm_card_len;
 
 static u32 sfxb_left;
 
@@ -91,6 +92,8 @@ void sfxpcm_play(int id)
     case SFXP_CLANG: src = sfxpcm_clang; len = sfxpcm_clang_len; break;
     case SFXP_COIN:  src = sfxpcm_coin;  len = sfxpcm_coin_len;  break;
     case SFXP_SLASH: src = sfxpcm_slash; len = sfxpcm_slash_len; break;
+    case SFXP_HEAL:  src = sfxpcm_heal;  len = sfxpcm_heal_len;  break;
+    case SFXP_CARD:  src = sfxpcm_card;  len = sfxpcm_card_len;  break;
     }
     if (!opt_sfx) return;
     REG_SOUNDCNT_H |= 0x8000;           /* FIFO B reset */

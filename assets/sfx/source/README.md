@@ -11,6 +11,8 @@ in. Any slot without a file here keeps its synthesized default.
 | `slash.*`        | attack variety (alternates w/ hit)  | `swing.*`               |
 | `clang.*`        | you gain Block / a hit is absorbed  | `block.*`, `shield.*`   |
 | `coin.*`         | gold gained / shop purchase         | `gold.*`                |
+| `heal.*`         | healing (potions, life-on-kill)     | `restore.*`             |
+| `card.*`         | a card is played                    | `play.*`, `flip.*`      |
 
 Good sources: The Sounds Resource GBA rips (https://sounds.spriters-resource.com/game_boy_advance/).
 Keep it personal-use — ripped game audio is copyrighted; don't distribute the ROM with it.

@@ -6,22 +6,34 @@ sfxpcm_hit:
     .incbin "assets/sfx/hit.pcm"
     .global sfxpcm_hit_len
     .align 2
-sfxpcm_hit_len: .word 1920
+sfxpcm_hit_len: .word 3584
     .global sfxpcm_clang
 sfxpcm_clang:
     .incbin "assets/sfx/clang.pcm"
     .global sfxpcm_clang_len
     .align 2
-sfxpcm_clang_len: .word 2592
+sfxpcm_clang_len: .word 3584
     .global sfxpcm_coin
 sfxpcm_coin:
     .incbin "assets/sfx/coin.pcm"
     .global sfxpcm_coin_len
     .align 2
-sfxpcm_coin_len: .word 2592
+sfxpcm_coin_len: .word 8480
     .global sfxpcm_slash
 sfxpcm_slash:
     .incbin "assets/sfx/slash.pcm"
     .global sfxpcm_slash_len
     .align 2
-sfxpcm_slash_len: .word 1664
+sfxpcm_slash_len: .word 7616
+    .global sfxpcm_heal
+sfxpcm_heal:
+    .incbin "assets/sfx/heal.pcm"
+    .global sfxpcm_heal_len
+    .align 2
+sfxpcm_heal_len: .word 4208
+    .global sfxpcm_card
+sfxpcm_card:
+    .incbin "assets/sfx/card.pcm"
+    .global sfxpcm_card_len
+    .align 2
+sfxpcm_card_len: .word 1392

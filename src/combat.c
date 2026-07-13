@@ -387,7 +387,7 @@ static int play_card(int hi, int target)
     /* move card out of hand */
     if (cd->exhaust) pile_exhaust_card(hi);
     else pile_discard_card(hi);
-    sfx_ok();
+    sfx_card();
     return 1;
 }
 
