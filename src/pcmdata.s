@@ -12,4 +12,4 @@ pcm_run:
     .incbin "assets/music/run.pcm"
     .global pcm_run_len
     .align 2
-pcm_run_len: .word 1745856
+pcm_run_len: .word 2999360
