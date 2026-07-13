@@ -34,6 +34,132 @@ static u8 roll_room(int floor)
     return ROOM_MONSTER;
 }
 
+/* ---- map balance: StS-style pacing constraints ----
+   The random walks assign types with no spacing rules, which clumps (back-to-
+   back shops, adjacent elites, no rest before the boss).  balance_map() runs
+   after the walks: it locks the fixed floors, rerolls nodes that violate the
+   pacing rules until clean or a retry cap, then enforces per-act caps.
+   MONSTER is exempt from every rule and is the universal fallback, so the
+   pass always terminates on a valid, playable map. */
+#define MAX_ELITES      2
+#define MAX_SHOPS       3
+#define MIN_ELITE_FLOOR 5
+#define MIN_REST_FLOOR  5
+
+static int node_exists(int f, int c)
+{
+    return f >= 0 && f < MFLOORS && c >= 0 && c < MCOLS &&
+           mnode[f][c].room != ROOM_NONE;
+}
+
+/* is there an upward edge from (f,c) to (f+1, nc)? */
+static int has_up_edge(int f, int c, int nc)
+{
+    int d = nc - c;
+    if (f < 0 || f >= MFLOORS - 1 || c < 0 || c >= MCOLS) return 0;
+    if (d < -1 || d > 1) return 0;
+    return (mnode[f][c].edges >> (d + 1)) & 1;
+}
+
+/* is (f-1, pc) a parent (path predecessor) of (f, c)? */
+static int is_parent(int f, int c, int pc)
+{
+    return node_exists(f - 1, pc) && has_up_edge(f - 1, pc, c);
+}
+
+/* does any parent of (f,c) have room type R? */
+static int parent_has(int f, int c, u8 room)
+{
+    for (int pc = c - 1; pc <= c + 1; pc++)
+        if (is_parent(f, c, pc) && mnode[f - 1][pc].room == room) return 1;
+    return 0;
+}
+
+/* is there a same-type run of 3 ending at (f,c)? (a parent of R that itself
+   has a parent of R) */
+static int triple_run(int f, int c)
+{
+    u8 R = mnode[f][c].room;
+    for (int pc = c - 1; pc <= c + 1; pc++) {
+        if (!is_parent(f, c, pc) || mnode[f - 1][pc].room != R) continue;
+        if (parent_has(f - 1, pc, R)) return 1;
+    }
+    return 0;
+}
+
+static int floor_locked(int f)   /* fixed floors are never rerolled */
+{
+    return f == 0 || f == 1 || f == 8 || f == MFLOORS - 1;
+}
+
+/* does the node break a rerollable pacing rule, given its neighbours? */
+static int node_bad(int f, int c)
+{
+    u8 R = mnode[f][c].room;
+    if (R == ROOM_SHOP  && parent_has(f, c, ROOM_SHOP))  return 1; /* back-to-back shop */
+    if (R == ROOM_ELITE && parent_has(f, c, ROOM_ELITE)) return 1; /* adjacent elites */
+    if (R == ROOM_ELITE && f < MIN_ELITE_FLOOR) return 1;
+    if (R == ROOM_REST  && f < MIN_REST_FLOOR)  return 1;          /* rest too early */
+    /* floor 14 is a locked (forced) rest, so a rest run into it isn't caught by
+       triple_run (that node is never rerolled); break it a step earlier. */
+    if (R == ROOM_REST && f == MFLOORS - 2 && parent_has(f, c, ROOM_REST)) return 1;
+    if (R != ROOM_MONSTER && triple_run(f, c))  return 1;          /* no type 3x on a path */
+    return 0;
+}
+
+static void balance_map(void)
+{
+    /* StS opener: floors 0 and 1 are always plain combat. */
+    for (int c = 0; c < MCOLS; c++) {
+        if (node_exists(0, c)) mnode[0][c].room = ROOM_MONSTER;
+        if (node_exists(1, c)) mnode[1][c].room = ROOM_MONSTER;
+    }
+
+    /* reroll local violators, preferring a fresh valid roll, else MONSTER. */
+    for (int pass = 0; pass < 80; pass++) {
+        int changed = 0;
+        for (int f = 2; f < MFLOORS - 1; f++) {
+            if (floor_locked(f)) continue;
+            for (int c = 0; c < MCOLS; c++) {
+                if (!node_exists(f, c) || !node_bad(f, c)) continue;
+                u8 pick = ROOM_MONSTER;
+                for (int t = 0; t < 6; t++) {
+                    mnode[f][c].room = roll_room(f);
+                    if (!node_bad(f, c)) { pick = mnode[f][c].room; break; }
+                }
+                mnode[f][c].room = pick;
+                changed = 1;
+            }
+        }
+        if (!changed) break;
+    }
+
+    /* guarantee: force any residual violator to plain combat.  Ascending so a
+       demoted node can never leave a child violating (MONSTER parents break
+       every chain and every back-to-back). */
+    for (int f = 2; f < MFLOORS - 1; f++) {
+        if (floor_locked(f)) continue;
+        for (int c = 0; c < MCOLS; c++)
+            if (node_exists(f, c) && node_bad(f, c)) mnode[f][c].room = ROOM_MONSTER;
+    }
+
+    /* per-act caps: demote excess elites / shops to plain combat (bottom-up,
+       so the earliest of each survive).  Demotion to MONSTER cannot introduce
+       a new violation. */
+    int elites = 0, shops = 0;
+    for (int f = 2; f < MFLOORS - 1; f++) {
+        if (floor_locked(f)) continue;
+        for (int c = 0; c < MCOLS; c++) {
+            if (!node_exists(f, c)) continue;
+            if (mnode[f][c].room == ROOM_ELITE) {
+                if (++elites > MAX_ELITES) mnode[f][c].room = ROOM_MONSTER;
+            } else if (mnode[f][c].room == ROOM_SHOP) {
+                if (++shops > MAX_SHOPS) mnode[f][c].room = ROOM_MONSTER;
+            }
+        }
+    }
+}
+
 void map_generate(void)
 {
     for (int f = 0; f < MFLOORS; f++)
@@ -56,6 +182,7 @@ void map_generate(void)
             c = nc;
         }
     }
+    balance_map();
 }
 
 int map_current_room(void)
