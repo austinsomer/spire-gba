@@ -194,6 +194,7 @@ void title_screen(void);
 void map_screen(void);
 void combat_screen(int encounter);  /* sets combat result */
 void reward_screen(int elite);
+void neow_screen(void);        /* run-start blessing (before first map) */
 void rest_screen(void);
 void shop_screen(void);
 void event_screen(void);

@@ -237,6 +237,38 @@ void reward_screen(int elite)
     }
 }
 
+/* ---------- neow's blessing (run start) ----------
+   A one-time gift the whale offers before the first map. Loop the menu until
+   the player commits to a blessing that actually takes effect: HP/gold always
+   commit; remove/obtain commit only if the sub-picker wasn't cancelled. The
+   deck_browse/card_choice helpers draw their own full screens (and both leave
+   the backdrop on scene_none), so we simply redraw the Neow menu on the next
+   loop pass. */
+void neow_screen(void)
+{
+    static const char *const items[4] = {
+        "MAX HP +8", "GAIN 100 GOLD", "REMOVE A CARD", "OBTAIN A CARD"
+    };
+    scene_none();
+    for (;;) {
+        txt_clear(); ui_clear();
+        txt_put2x(1, 2, "NEOWS BLESSING", CLR_CYAN);
+        txt_put(4, 6, "A WHALE OFFERS A GIFT", CLR_GRAY);
+        int m = menu(6, 9, items, 4, 0);
+        if (m == 0) { run.maxhp += 8; run.hp += 8; sfx_ok(); return; }
+        if (m == 1) { run.gold += 100; sfx_ok(); return; }
+        if (m == 2) {
+            int i = deck_browse("REMOVE WHICH?", 1);
+            if (i >= 0) { deck_remove(i); sfx_ok(); return; }
+        } else { /* m == 3 */
+            reward_elite = 0;
+            int id = card_choice();
+            if (id >= 0) { deck_add(id); sfx_ok(); return; }
+        }
+        /* sub-picker cancelled: fall through to redraw the Neow menu */
+    }
+}
+
 /* ---------- rest ---------- */
 
 void rest_screen(void)

@@ -70,6 +70,7 @@ void title_screen(void)
         if (sel == 0) {
             rng_seed(frame_count * 2654435761u + 12345);
             run_new();
+            neow_screen();
             gstate = ST_MAP;
             return;
         }
