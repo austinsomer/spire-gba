@@ -445,8 +445,13 @@ static const u8 species_spr[N_ENEMIES] = {
 
 /* battle stage: arena band y16-95, floor oval lit center ~y56-95.
    player sprite left (oam 5), enemies right (oam 0..2), feet at y88. */
-#define EN_X(i) (128 + (i) * 40)
-#define STAGE_Y 56   /* sprite top; feet at y88, hp bar row 11 (y88-95) */
+/* Depth composition: player is the near anchor (bottom-left, STAGE_Y);
+   enemies read as further back = shifted right + lifted up the ground plane.
+   Spacing tightens to 34px only when 3 enemies so the rightmost never clips. */
+#define EN_SP   (nen >= 3 ? 34 : 40)
+#define EN_X(i) (138 + (i) * EN_SP)
+#define STAGE_Y 56   /* player sprite top; feet at y88, hp bar row 11 (y88-95) */
+#define EN_Y    (STAGE_Y - 6)   /* normal enemies lifted 6px (feet y82) for depth */
 #define OAM_PLAYER 5
 #define OAM_SHADOW0 6           /* 6..9: player + 3 enemy shadows */
 
@@ -492,8 +497,8 @@ static void draw_enemies(int cursor, int targeting)
             obj_show_big(i, species_spr[e->id], EN_X(i) - 16, STAGE_Y - 32);
         } else {
             obj_hide(10);
-            obj_show(OAM_SHADOW0 + 1 + i, SPR_SHADOW, EN_X(i), STAGE_Y + 8);
-            obj_show(i, species_spr[e->id], EN_X(i), STAGE_Y);
+            obj_show(OAM_SHADOW0 + 1 + i, SPR_SHADOW, EN_X(i), EN_Y + 8);
+            obj_show(i, species_spr[e->id], EN_X(i), EN_Y);
         }
         /* 16x16 intent icon + numbers above sprite (higher for 2x bosses) */
         int iy = is_boss ? 2 : 4;
@@ -516,10 +521,11 @@ static void draw_enemies(int cursor, int targeting)
         if (targeting && i == cursor) hud_stamp(H_TARGET, cx, iy - 2);
         /* framed hp bar under sprite, in-arena (hp only: 3 bars must not
            collide in the sentry fight); statuses above sprite */
-        ui_bar(cx, 11, 4, e->hp, e->maxhp, CLR_RED);
+        int hpr = is_boss ? 11 : 10;   /* track the lifted feet for normal enemies */
+        ui_bar(cx, hpr, 4, e->hp, e->maxhp, CLR_RED);
         {
             int v = e->hp, dg = v > 99 ? 3 : v > 9 ? 2 : 1;
-            txt_int(cx + (4 - dg) / 2, 11, v, CLR_WHITE);
+            txt_int(cx + (4 - dg) / 2, hpr, v, CLR_WHITE);
         }
         int sx = cx;
         if (e->block) { txt_putc(sx, 6, 'B', CLR_BLUE); sx = txt_int_at(sx+1, 6, e->block, CLR_BLUE); }
@@ -641,7 +647,7 @@ static void nudge_sprite(int tgt, int dx)
     if (is_boss)
         obj_show_big(tgt, species_spr[e->id], EN_X(tgt) - 16 + dx, STAGE_Y - 32);
     else
-        obj_show(tgt, species_spr[e->id], EN_X(tgt) + dx, STAGE_Y);
+        obj_show(tgt, species_spr[e->id], EN_X(tgt) + dx, EN_Y);
 }
 
 /* consume hitq: ~14 frames of sprite shake + floating damage numbers,

@@ -60,6 +60,20 @@ Repo: https://github.com/austinsomer/spire-gba (build/ untracked — `make` rege
 
 - [x] Neow's Blessing run-start event (2026-07-13): NEW GAME now opens a blessing screen before the first map (StS run-opener). neow_screen() (screens.c, proto in game.h) wired into title_screen() sel==0 between run_new() and gstate=ST_MAP. scene_none backdrop, 2x cyan "NEOWS BLESSING" title (txt_put2x, 28 cols) + "A WHALE OFFERS A GIFT" flavor + menu() of 4: MAX HP +8 (maxhp+8 & hp+8), GAIN 100 GOLD, REMOVE A CARD (deck_browse pick 1 → deck_remove; cancel re-shows menu), OBTAIN A CARD (reward_elite=0; card_choice() → deck_add; skip re-shows menu). Loop commits exactly one blessing (opts 1-2 always; 3-4 only if sub-picker not cancelled) then returns. Reuses existing static card_choice/menu/deck_remove/deck_browse — no new assets. menu() called allow_back=0 so it only returns 0..n-1 (never -1) → the else/*m==3*/ dispatch is safe. Save: Neow runs pre-first-ST_MAP with prev==ST_TITLE so the main-loop save hook skips it (blessing persists, saved on next map re-entry). VERIFIED: temp NEOWTEST hook (added→removed, tree clean) screenshot showed the 2x title + flavor + 4-option menu (MAX HP +8 selected, cursor+blue bar) 61fps. Ship `make` (3584KB) boots.
 
+- [x] Enemy depth composition (2026-07-13): enemy sprites moved up + right so the arena reads with depth — player is the near anchor (bottom-left, unchanged x24/STAGE_Y56), enemies now sit further back on the receding floor plane. combat.c: `EN_X` base 128→138 (+10px right) and new `EN_SP` spacing macro = 40px normally / 34px when `nen>=3` (keeps the 3rd sentry from clipping the 240px right edge — verified fully on-screen). New `EN_Y = STAGE_Y-6` lifts normal enemies 6px (feet y88→y82, higher on the lit floor oval = farther); shadow tracks (`EN_Y+8`) so it stays grounded, and the framed hp bar drops row 11→10 for normals (`hpr = is_boss?11:10`) so it hugs the raised feet with no float. Bosses (2x, `is_boss`) get the rightward shift only — vertical kept at STAGE_Y so the 64px sprite/its intent don't collide the top relic/gold HUD (rows 0-1); their hp bar stays row 11. nudge_sprite (hit-shake) updated to EN_Y for normals so shake replaces at the new position. Intent icons (rows 2-5) + status (row 6) left as-is; the 6px lift keeps a clean gap above normal sprites. No new assets; ROM still 3584KB. VERIFIED via temp BATTLETEST captures (forced encounters, reverted): single Jaw Worm — diagonal depth reads, hp bar tracks feet at row 10; 3 Sentries (enc 9) — all three fully on-screen, hp bars 42/40/41 no collision/clip; Guardian boss (enc 11) — 2x sprite right-shifted, fully on-screen, intent clear of top HUD, hp bar row 11, 60fps. Ship `make` (3584KB) builds clean, boots to title.
+
+## TODO
+### Map generation balance rules (src/map.c)
+Current gen = 4 random walks unioned into a DAG, node types assigned unconstrained → clumps (back-to-back shops, elite spam, no rest before boss). Add StS-style constraints so runs pace better:
+- [ ] No back-to-back shops — a shop node may not be directly adjacent (on the same path) to another shop.
+- [ ] No same node type 3x in a row along any single path (shop / rest / event / elite).
+- [ ] Elite rules: none on floor 1, no two adjacent elites, cap elites per act (~2-3).
+- [ ] Shop rules: cap shops per act (~2-3) with minimum floor spacing between them.
+- [ ] Rest rules: guarantee a rest site is reachable before the act boss; don't place the first rest too early.
+- [ ] Floor 1 = normal combat only (StS opener); keep the fixed mid-act treasure floor.
+- [ ] Spread node types across paths so each route hits a mix (weight ?/event/shop presence), not one type dominating.
+- [ ] Enforcement: after assigning types, validate the map against the rules and reroll offending nodes (simpler than a constraint solver). Re-validate until clean or a retry cap, then fall back to least-bad.
+
 ## Design decisions
 - Player: Ironclad 80 HP, 3 energy, draw 5. Statuses: Wound/Burn/Slimed/Dazed.
 - Screens run own loops, set `gstate` to advance (see main.c state machine).
