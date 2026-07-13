@@ -155,8 +155,10 @@ typedef struct {
     u8  relics[16];
     u8  nrelics;
     u8  act_boss;           /* which boss this run */
-    u8  potion;             /* 0 = none, else potion id */
+    u8  potions[3];         /* potion belt; each 0 = empty slot, else potion id */
 } Run;
+
+#define N_POTION_SLOTS 3
 
 extern Run run;
 extern GState gstate;
@@ -173,13 +175,15 @@ extern const char relic_names[N_RELICS][14];
 extern const char relic_desc[N_RELICS][24];
 void relic_view(void);         /* owned-relic list + effect text (pause menu) */
 
-/* potions — single slot (run.potion, POT_NONE = empty), used in combat
-   with SELECT. Names/short tags in screens.c */
+/* potions — 3-slot belt (run.potions[N_POTION_SLOTS], POT_NONE = empty slot),
+   used in combat with SELECT (opens a picker). Names/tags in screens.c */
 enum { POT_NONE, POT_HEAL, POT_STR, POT_BLOCK, POT_ENERGY, N_POTIONS };
 extern const char potion_names[N_POTIONS][12];
-extern const char potion_tags[N_POTIONS][5];   /* HUD chip, e.g. "HP+" */
+extern const char potion_tags[N_POTIONS][5];    /* long HUD chip, e.g. "HP+" */
+extern const char potion_short[N_POTIONS][3];    /* 2-char belt chip, e.g. "HP" */
 #define POTION_PRICE 48
 u8 potion_roll(int elite);   /* drop roll: id or POT_NONE */
+int potion_first_empty(void);   /* first free belt slot, or -1 if full */
 void relic_add(u8 r);
 u8   relic_random(void);       /* unowned relic, or 0xFF if all owned */
 

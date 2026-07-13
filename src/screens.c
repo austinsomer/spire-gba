@@ -24,11 +24,20 @@ const char potion_names[N_POTIONS][12] = {
     "", "BLOOD POT.", "STR POTION", "BLOCK POT.", "ENERGY POT",
 };
 const char potion_tags[N_POTIONS][5] = { "", "HP+", "STR+", "BLK+", "NRG+" };
+const char potion_short[N_POTIONS][3] = { "", "HP", "ST", "BK", "NG" };
 
-/* drop roll after combat: 30% normal / 50% elite, only into empty slot */
+/* first empty belt slot index, or -1 if the belt is full */
+int potion_first_empty(void)
+{
+    for (int i = 0; i < N_POTION_SLOTS; i++)
+        if (run.potions[i] == POT_NONE) return i;
+    return -1;
+}
+
+/* drop roll after combat: 30% normal / 50% elite, only if a slot is free */
 u8 potion_roll(int elite)
 {
-    if (run.potion != POT_NONE) return POT_NONE;
+    if (potion_first_empty() < 0) return POT_NONE;
     if ((int)rng_range(100) >= (elite ? 50 : 30)) return POT_NONE;
     return (u8)(POT_HEAL + rng_range(N_POTIONS - 1));
 }
@@ -215,7 +224,12 @@ void reward_screen(int elite)
             got_card = 1;
             break;
         }
-        case 4: run.potion = pot; pot = 0; sfx_heal(); break;
+        case 4: {
+            int slot = potion_first_empty();
+            if (slot >= 0) { run.potions[slot] = pot; pot = 0; sfx_heal(); }
+            else sfx_bad();
+            break;
+        }
         case 3:
             if (run_has_relic(RLC_BURNINGBLOOD)) heal(6);
             gstate = ST_MAP; return;
@@ -327,7 +341,7 @@ void shop_screen(void)
         txt_putc(0, y, sel == 6 ? '>' : ' ', CLR_YELLOW);
         if (psold) txt_put(2, y, "SOLD OUT", CLR_GRAY);
         else {
-            int can = run.gold >= POTION_PRICE && run.potion == POT_NONE;
+            int can = run.gold >= POTION_PRICE && potion_first_empty() >= 0;
             txt_put(2, y, potion_names[pot], can ? CLR_GREEN : CLR_GRAY);
             txt_int(20, y, POTION_PRICE, can ? CLR_YELLOW : CLR_DKRED);
         }
@@ -359,9 +373,10 @@ void shop_screen(void)
                     bg2_fill(SCARD_X(sel), SCARD_Y, 5, 7, 0);   /* clear the face */
                 } else if (sel == 5 && !rsold && run.gold >= rprice) {
                     run.gold -= rprice; relic_add(relic); rsold = 1; sfx_coin();
-                } else if (sel == 6 && !psold && run.potion == POT_NONE &&
+                } else if (sel == 6 && !psold && potion_first_empty() >= 0 &&
                            run.gold >= POTION_PRICE) {
-                    run.gold -= POTION_PRICE; run.potion = pot; psold = 1; sfx_coin();
+                    run.gold -= POTION_PRICE;
+                    run.potions[potion_first_empty()] = pot; psold = 1; sfx_coin();
                 } else if (sel == 7 && !removed && run.gold >= 75) {
                     int i = deck_browse("REMOVE WHICH?", 1);
                     scene_shop();   /* bg2_clear'd -> re-stamp the unsold faces */

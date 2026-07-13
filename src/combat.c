@@ -691,10 +691,10 @@ static void anim_hits(void)
     nhitq = 0;
 }
 
-/* SELECT in combat drinks the held potion */
-static void use_potion(void)
+/* drink the potion in belt slot `slot`, then clear that slot */
+static void use_potion(int slot)
 {
-    switch (run.potion) {
+    switch (run.potions[slot]) {
     case POT_HEAL:
         run.hp += 12;
         if (run.hp > run.maxhp) run.hp = run.maxhp;
@@ -704,7 +704,40 @@ static void use_potion(void)
     case POT_ENERGY: pl.energy += 2; sfx_ok();    break;
     default: return;
     }
-    run.potion = POT_NONE;
+    run.potions[slot] = POT_NONE;
+}
+
+/* SELECT opens the potion belt picker: choose one held potion to drink.
+   Mirrors the deck_browse recovery — hides sprites + draws its own menu,
+   then returns so the outer combat loop recomposes via draw_all(). */
+static void potion_picker(void)
+{
+    int slots[N_POTION_SLOTS], n = 0;
+    for (int i = 0; i < N_POTION_SLOTS; i++)
+        if (run.potions[i] != POT_NONE) slots[n++] = i;
+    if (n == 0) return;                 /* empty belt: silent no-op */
+
+    obj_hide_all(); scene_none();
+    int sel = 0;
+    for (;;) {
+        txt_clear(); ui_clear();
+        txt_put(1, 0, "DRINK POTION", CLR_GREEN);
+        for (int i = 0; i < n; i++) {
+            int y = 3 + i;
+            ui_fill(3, y, 22, 1, T_PANEL, i == sel ? CLR_BLUE : CLR_GRAY);
+            txt_putc(3, y, i == sel ? '>' : ' ', CLR_YELLOW);
+            txt_put(5, y, potion_names[run.potions[slots[i]]],
+                    i == sel ? CLR_WHITE : CLR_GRAY);
+        }
+        txt_put(1, 4 + n, "A:DRINK  B:CANCEL", CLR_GRAY);
+        for (;;) {
+            vsync(); key_poll();
+            if (key_repeat(KEY_UP)   && sel > 0)     { sel--; sfx_blip(); break; }
+            if (key_repeat(KEY_DOWN) && sel < n - 1) { sel++; sfx_blip(); break; }
+            if (key_hit(KEY_A)) { use_potion(slots[sel]); return; }
+            if (key_hit(KEY_B)) { sfx_bad(); return; }
+        }
+    }
 }
 
 static void draw_all(int sel, int cursor, int targeting)
@@ -714,9 +747,16 @@ static void draw_all(int sel, int cursor, int targeting)
     /* top bar: owned relics left, potion chip, coin + gold right */
     for (int k = 0; k < run.nrelics && k < 8; k++)
         relic_stamp(run.relics[k], k * 2, 0);
-    if (run.potion) {
-        txt_put(18, 0, potion_tags[run.potion], CLR_GREEN);
-        txt_put(18, 1, "SEL", CLR_GRAY);
+    /* potion belt: up to 3 two-char chips at cols 18/20/22 (fits before coin
+       at col 24). SEL hint below if any potion is held. */
+    {
+        int held = 0;
+        for (int i = 0; i < N_POTION_SLOTS; i++) {
+            if (run.potions[i] == POT_NONE) continue;
+            txt_put(18 + i * 2, 0, potion_short[run.potions[i]], CLR_GREEN);
+            held = 1;
+        }
+        if (held) txt_put(18, 1, "SEL", CLR_GRAY);
     }
     hud_stamp(H_COIN, 24, 0);
     txt_int(27, 1, run.gold, CLR_YELLOW);
@@ -810,7 +850,8 @@ void combat_screen(int encounter)
 #ifdef AUTOPLAY
         {
             for (int f = 0; f < 15; f++) vsync();
-            if (run.potion) use_potion();   /* bot drinks immediately */
+            for (int i = 0; i < N_POTION_SLOTS; i++)   /* bot drinks first held */
+                if (run.potions[i] != POT_NONE) { use_potion(i); break; }
             act = 2;
             for (int i = 0; i < piles.nhand; i++) {
                 CardInst c = piles.hand[i];
@@ -828,7 +869,16 @@ void combat_screen(int encounter)
             if (key_repeat(KEY_RIGHT) && sel < piles.nhand - 1) { sel++; sfx_blip(); break; }
             if (key_hit(KEY_A) && piles.nhand > 0) { act = 1; break; }
             if (key_hit(KEY_R)) { act = 2; break; }
-            if (key_hit(KEY_SELECT) && run.potion) { use_potion(); break; }
+            if (key_hit(KEY_SELECT)) {
+                int any = 0;
+                for (int i = 0; i < N_POTION_SLOTS; i++)
+                    if (run.potions[i] != POT_NONE) { any = 1; break; }
+                if (any) {                  /* empty belt: silent no-op */
+                    potion_picker();
+                    for (int i = 0; i < 5; i++) face_loaded[i] = 0;
+                    break;
+                }
+            }
             if (key_hit(KEY_B)) {
                 obj_hide_all(); scene_none();
                 deck_browse("DECK", 0);

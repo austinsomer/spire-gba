@@ -71,7 +71,7 @@ void run_new(void)
     run.mapcol = 0;
     run.ndeck = 0;
     run.nrelics = 0;
-    run.potion = 0;
+    for (int i = 0; i < N_POTION_SLOTS; i++) run.potions[i] = POT_NONE;
     for (int i = 0; i < 5; i++) deck_add(C_STRIKE);
     for (int i = 0; i < 4; i++) deck_add(C_DEFEND);
     deck_add(C_BASH);
