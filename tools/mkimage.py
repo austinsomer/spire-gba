@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Full-screen mode-4 title image: PNG -> src/title_img.h
 usage: mkimage.py <src.png> <out.h> [menu line]...
-Cover-crops to 240x160, optional 1.5x menu-text lines near the bottom
-(each with its own arrow cursor on a reserved blinkable palette slot),
-quantizes to the remaining colors, emits u16 palette + packed pixels."""
+Cover-crops to 240x160 and quantizes the CLEAN key art (no menu text baked
+in).  Each menu line is emitted separately as a compact blittable "text patch"
+(1.5x font: fill pixels on the line's reserved palette slot, outline pixels on
+a shared reserved black slot, 0 = transparent).  The C driver reflows/centers
+the visible lines at runtime and blits the patches into mode-4 VRAM, so
+CONTINUE can be hidden with no baked-in gap."""
 import sys
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 src, out = sys.argv[1], sys.argv[2]
 texts = sys.argv[3:]
@@ -21,10 +24,25 @@ else:
     im = im.crop((0, (h - nh) // 2, w, (h + nh) // 2))
 im = im.resize((240, 160), Image.LANCZOS)
 
-line_geo = []          # (x0, y0, arrow_mask) per line
+# ---- reserved palette layout -------------------------------------------------
+# quantize the art into `ncol` colors, then reserve one blinkable FILL slot per
+# menu line plus one shared BLACK outline slot at the top of the palette.
+NLINES = len(texts)
+ncol = 255 - NLINES - 1            # quantized colors; rest reserved
+# VRAM byte written for a line's fill pixels / the shared outline pixels
+# (palette entry 0 is unused, hence the "+1" convention used everywhere).
+FILL_BYTE = [ncol + 1 + li for li in range(NLINES)]   # e.g. 252,253,254
+BLACK_BYTE = ncol + NLINES + 1                          # e.g. 255
+
+SCALE = 1.5
+G = int(8 * SCALE)                # glyph cell = 12 px
+GAP = 6                           # vertical gap between lines
+PAD = 1                           # 1px border so the outline dilation fits
+MENU_TOP, MENU_BOT = 95, 160      # menu region (under the ~y95 logo)
+
+# ---- render each menu line into a byte patch --------------------------------
+patches = []                      # (pw, ph, bytes) per line
 if texts:
-    # render with the game's font8x8 at 1.5x: chunky cream text, black
-    # outline, filled arrow cursor before each line (StS menu style)
     import re, os
     hdr = open(os.path.join(os.path.dirname(__file__), '..', 'src',
                             'font8x8.h')).read()
@@ -32,59 +50,59 @@ if texts:
                   hdr, re.S)
     rowvals = [int(v, 16) for v in re.findall(r'0x[0-9A-Fa-f]{2}', m.group(1))]
     font = [rowvals[i*8:(i+1)*8] for i in range(128)]
-    ARROW = [0x08, 0x18, 0x38, 0x78, 0x78, 0x38, 0x18, 0x08]
 
-    SCALE = 1.5
-    G = int(8 * SCALE)
-    GAP = 8
-    block = len(texts) * G + (len(texts) - 1) * GAP
-    ytop = 95 + (160 - 95 - block) // 2   # centered under the logo (~y95)
-    dst = im.load()
-    CREAM, BLACK = (232, 224, 196), (16, 14, 20)
     for li, text in enumerate(texts):
-        glyphs = [ARROW, font[ord(' ')]] + [font[ord(c)] for c in text]
-        mask, arrow_mask = set(), set()
+        glyphs = [font[ord(c)] for c in text]
+        mask = set()
         for gi, g in enumerate(glyphs):
             for sy in range(G):
                 for sx in range(G):
                     if g[int(sy / SCALE)] & (1 << int(sx / SCALE)):
                         mask.add((gi * G + sx, sy))
-                        if gi == 0:
-                            arrow_mask.add((gi * G + sx, sy))
-        x0, y0 = (240 - len(glyphs) * G) // 2, ytop + li * (G + GAP)
+        tw, th = len(glyphs) * G, G
+        pw, ph = tw + 2 * PAD, th + 2 * PAD
+        patch = bytearray(pw * ph)          # 0 = transparent
+        # black outline first (dilation border), then fill on top
         for (x, y) in mask:
             for dy in (-1, 0, 1):
                 for dx in (-1, 0, 1):
                     if (x + dx, y + dy) not in mask:
-                        xx, yy = x0 + x + dx, y0 + y + dy
-                        if 0 <= xx < 240 and 0 <= yy < 160:
-                            dst[xx, yy] = BLACK
+                        patch[(y + dy + PAD) * pw + (x + dx + PAD)] = BLACK_BYTE
         for (x, y) in mask:
-            dst[x0 + x, y0 + y] = CREAM
-        line_geo.append((x0, y0, arrow_mask))
+            patch[(y + PAD) * pw + (x + PAD)] = FILL_BYTE[li]
+        patches.append((pw, ph, patch))
 
-# reserve one blinkable slot per menu line at the top of the palette
-ncol = 255 - len(texts)
+# ---- quantize the clean art -------------------------------------------------
 q = im.quantize(colors=ncol, method=Image.MEDIANCUT, dither=Image.FLOYDSTEINBERG)
-pal = q.getpalette()[:ncol * 3] + [232, 224, 196] * len(texts)
+CREAM_INIT = (176, 168, 140)      # unselected fill (default palette value)
+BLACK_COL = (16, 14, 20)          # outline
+pal = (q.getpalette()[:ncol * 3]
+       + list(CREAM_INIT) * NLINES
+       + list(BLACK_COL))         # ncol + NLINES + 1 = 255 entries
 pix = q.load()
-for li, (x0, y0, arrow_mask) in enumerate(line_geo):
-    for (x, y) in arrow_mask:
-        pix[x0 + x, y0 + y] = ncol + li
 
 def rgb15(r, g, b): return (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10)
 
 with open(out, 'w') as fo:
     fo.write('/* generated by tools/mkimage.py — do not edit */\n')
     fo.write('#ifndef TITLE_IMG_H\n#define TITLE_IMG_H\n#include "gba.h"\n\n')
-    fo.write(f'#define TITLE_NLINES {len(texts)}\n')
-    fo.write(f'#define TITLE_ARROW_PALIDX {ncol + 1}   /* +li per line */\n')
-    fo.write(f'#define TITLE_ARROW_ON  0x{rgb15(232,224,196):04x}\n')
-    fo.write(f'#define TITLE_ARROW_OFF 0x{rgb15(16,14,20):04x}\n\n')
+    fo.write(f'#define TITLE_NLINES {NLINES}\n')
+    # per-line fill slot (palette index), +li per line; shared black slot.
+    fo.write(f'#define TITLE_FILL_PALIDX {ncol + 1}   /* +li per line */\n')
+    fo.write(f'#define TITLE_BLACK_PALIDX {BLACK_BYTE}\n')
+    fo.write(f'#define TITLE_FILL_ON  0x{rgb15(255,215,64):04x}   /* selected: gold */\n')
+    fo.write(f'#define TITLE_FILL_OFF 0x{rgb15(176,168,140):04x}   /* unselected: cream */\n')
+    # menu-reflow geometry (used by the runtime blitter)
+    fo.write(f'#define TITLE_MENU_TOP {MENU_TOP}\n')
+    fo.write(f'#define TITLE_MENU_BOT {MENU_BOT}\n')
+    fo.write(f'#define TITLE_LINE_H {G + 2 * PAD}\n')
+    fo.write(f'#define TITLE_LINE_GAP {GAP}\n\n')
+
     fo.write('static const u16 title_pal[256] = {0,')
     fo.write(','.join(f'0x{rgb15(pal[i*3],pal[i*3+1],pal[i*3+2]):04x}'
                       for i in range(255)))
     fo.write('};\n\n')
+
     words = []
     for y in range(160):
         for x in range(0, 240, 2):
@@ -92,5 +110,24 @@ with open(out, 'w') as fo:
     fo.write(f'static const u16 title_px[{len(words)}] = {{\n')
     for i in range(0, len(words), 16):
         fo.write(','.join(f'0x{v:04x}' for v in words[i:i+16]) + ',\n')
-    fo.write('};\n\n#endif\n')
-print(f'mkimage: 240x160, {len(words)*2} bytes')
+    fo.write('};\n\n')
+
+    # per-line text patches + geometry tables
+    for li, (pw, ph, patch) in enumerate(patches):
+        fo.write(f'static const u8 title_patch{li}[{len(patch)}] = {{\n')
+        for i in range(0, len(patch), 24):
+            fo.write(','.join(str(b) for b in patch[i:i+24]) + ',\n')
+        fo.write('};\n')
+    if patches:
+        fo.write('\nstatic const u8 *const title_patch[TITLE_NLINES] = {')
+        fo.write(','.join(f'title_patch{li}' for li in range(NLINES)))
+        fo.write('};\n')
+        fo.write('static const u8 title_patch_w[TITLE_NLINES] = {')
+        fo.write(','.join(str(patches[li][0]) for li in range(NLINES)))
+        fo.write('};\n')
+        fo.write('static const u8 title_patch_h[TITLE_NLINES] = {')
+        fo.write(','.join(str(patches[li][1]) for li in range(NLINES)))
+        fo.write('};\n')
+    fo.write('\n#endif\n')
+
+print(f'mkimage: 240x160 clean art, {len(words)*2} bytes, {NLINES} patches')

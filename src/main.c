@@ -24,7 +24,33 @@ void deck_add(u8 card_id)
 
 #include "title_img.h"
 
-/* menu lines: 0 NEW GAME, 1 CONTINUE (skipped without a save), 2 SETTINGS */
+/* Blit a menu-line text patch into mode-4 VRAM at (x0,y0).  VRAM is
+   byte-per-pixel but only 16-bit-writable, so replace the target byte with a
+   read-modify-write on the u16 word, selecting the byte by x parity.  Patch
+   bytes are palette indices (already "+1" adjusted); 0 = transparent (skip,
+   leaving the key art underneath). */
+static void title_blit_patch(int li, int x0, int y0)
+{
+    const u8 *p = title_patch[li];
+    int pw = title_patch_w[li], ph = title_patch_h[li];
+    for (int py = 0; py < ph; py++) {
+        int y = y0 + py;
+        if (y < 0 || y >= 160) continue;
+        for (int px = 0; px < pw; px++) {
+            u8 b = p[py * pw + px];
+            if (!b) continue;                 /* transparent */
+            int x = x0 + px;
+            if (x < 0 || x >= 240) continue;
+            int wi = (y * 240 + x) >> 1;       /* u16 word index */
+            u16 w = MEM_VRAM[wi];
+            if (x & 1) w = (w & 0x00ff) | ((u16)b << 8);
+            else       w = (w & 0xff00) | b;
+            MEM_VRAM[wi] = w;
+        }
+    }
+}
+
+/* menu lines: 0 NEW GAME, 1 CONTINUE (hidden without a save), 2 SETTINGS */
 void title_screen(void)
 {
     int sel = 0;
@@ -39,14 +65,30 @@ void title_screen(void)
             vu16 *v = MEM_VRAM;
             for (int i = 0; i < 240 * 160 / 2; i++) v[i] = title_px[i];
         }
+
+        /* reflow: visible menu lines (skip CONTINUE when there is no save),
+           vertically centered as a block under the logo, each patch centered
+           horizontally, then blitted onto the clean key art. */
+        int vis[TITLE_NLINES], nvis = 0;
+        for (int li = 0; li < TITLE_NLINES; li++)
+            if (li != 1 || have) vis[nvis++] = li;
+        int block = nvis * TITLE_LINE_H + (nvis - 1) * TITLE_LINE_GAP;
+        int ytop = TITLE_MENU_TOP + (TITLE_MENU_BOT - TITLE_MENU_TOP - block) / 2;
+        for (int k = 0; k < nvis; k++) {
+            int li = vis[k];
+            int y0 = ytop + k * (TITLE_LINE_H + TITLE_LINE_GAP);
+            int x0 = (240 - title_patch_w[li]) / 2;
+            title_blit_patch(li, x0, y0);
+        }
+
         if (sel == 1 && !have) sel = 0;
 
-        for (int blink = 0;; blink++) {
+        for (;;) {
             vsync(); key_poll();
-            int on = !(blink & 32);
+            /* steady highlight: selected line fill = gold, others = cream */
             for (int li = 0; li < TITLE_NLINES; li++)
-                MEM_PAL_BG[TITLE_ARROW_PALIDX + li] =
-                    (sel == li && on) ? TITLE_ARROW_ON : TITLE_ARROW_OFF;
+                MEM_PAL_BG[TITLE_FILL_PALIDX + li] =
+                    (sel == li) ? TITLE_FILL_ON : TITLE_FILL_OFF;
             if (key_hit(KEY_UP) && sel > 0) {
                 sel--;
                 if (sel == 1 && !have) sel = 0;
