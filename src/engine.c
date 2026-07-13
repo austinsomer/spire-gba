@@ -551,7 +551,7 @@ static void ch1(int vol, int envstep, int duty, int len, int sweep, int freq)
     REG_SOUND1CNT_X = (u16)(0x8000 | 0x4000 | (2048 - 131072 / freq));
 }
 
-void sfx_blip(void)  { if (!opt_sfx) return; ch1(9, 1, 1, 6, 0x00, 1245); }
+void sfx_blip(void)  { /* navigation is silent (nav beep removed) */ }
 /* confirm: rising chirp */
 void sfx_ok(void)    { if (!opt_sfx) return; ch1(11, 2, 1, 22, 0x23, 660); }
 /* cancel/error: falling womp */
