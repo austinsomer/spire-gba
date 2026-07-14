@@ -596,7 +596,7 @@ void sfx_coin(void)  { if (!opt_sfx) return; sfxpcm_play(SFXP_COIN); }
    Both use BLDY (brightness-down on every layer) + BG mosaic — content-
    agnostic, so one routine works from any screen. fx_pending gates reveal
    so screens NOT reached via a faded exit don't fade. */
-#define FX_FRAMES     10
+#define FX_FRAMES     30
 #define FX_MOSAIC_MAX 6
 static u8 fx_pending;
 
