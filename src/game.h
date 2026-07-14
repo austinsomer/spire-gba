@@ -21,6 +21,7 @@ enum {
     T_ARROW = 148,     /* right arrow */
     T_HEART = 149, T_GOLDPT = 150, T_ENERGY = 151, T_SHIELD = 152,
     T_DOT = 153,
+    T_ORB = 154,       /* filled disc: opaque cost-badge backing */
 };
 
 void video_init(void);
@@ -96,6 +97,8 @@ void sfx_bad(void);          /* error/cancel (falling womp) */
 void sfx_heal(void);         /* healing */
 void sfx_card(void);         /* card played */
 void sfx_coin(void);         /* gold gained / purchase */
+void fx_out(void);           /* fade+mosaic the current screen to black (on exit) */
+void fx_reveal(void);        /* fade the destination in from black (no-op if no pending fade) */
 
 /* sound settings (persist for the session; toggled in settings menu) */
 extern u8 opt_music, opt_sfx;

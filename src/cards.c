@@ -141,6 +141,14 @@ void pile_exhaust_card(int i)
     hand_remove(i);
 }
 
+/* power played: leaves play for the rest of combat (its effect is now an
+   ongoing buff) — not discarded, not exhausted, so it can't be replayed this
+   combat. piles rebuild from run.deck next combat, so the card comes back. */
+void pile_remove_hand(int i)
+{
+    hand_remove(i);
+}
+
 void pile_discard_hand(void)
 {
     while (piles.nhand > 0) {
@@ -193,6 +201,86 @@ static void zoom_center(int cx, int y, const char *s, int clr)
    (slot 0) with a frame + live cost/dmg/blk + full name/type/desc. any key
    returns. uses BG2 + charblock-1 face tiles/pal (bank 0 entries 4..15;
    list text uses entries 1..3, so no clobber of the list on return). */
+/* ---- detailed effect breakdown for card inspect ---- */
+static char *d_ap(char *p, const char *s) { while (*s) *p++ = *s++; return p; }
+static char *d_ai(char *p, int v)
+{
+    char u[6]; int m = 0;
+    if (v == 0) { *p++ = '0'; return p; }
+    while (v) { u[m++] = '0' + v % 10; v /= 10; }
+    while (m) *p++ = u[--m];
+    return p;
+}
+
+/* fill up to 4 human-readable lines describing exactly what the card does:
+   total damage (incl. multi-hit), block, draw, applied statuses w/ values,
+   and exhaust/ethereal flags. returns the line count. */
+static int card_detail(CardInst c, char lines[][32])
+{
+    const Card *cd = &cards[c.id];
+    int dmg = card_dmg(c), blk = card_block(c), drw = card_draw(c), v = card_spval(c);
+    int hits = cd->hits ? cd->hits : 1;
+    int n = 0;
+    char *p;
+
+    /* damage */
+    if (cd->sp == SP_BODYSLAM) {
+        p = d_ap(lines[n], "DEAL DMG = YOUR BLOCK"); *p = 0; n++;
+    } else if (cd->sp == SP_WHIRLWIND) {
+        p = d_ap(lines[n], "DEAL "); p = d_ai(p, dmg);
+        p = d_ap(p, " TO ALL, X TIMES"); *p = 0; n++;
+    } else if (dmg > 0) {
+        p = d_ap(lines[n], "DEAL "); p = d_ai(p, dmg);
+        if (hits > 1) { p = d_ap(p, " X"); p = d_ai(p, hits);
+                        p = d_ap(p, " ("); p = d_ai(p, dmg * hits); p = d_ap(p, ")"); }
+        if (cd->target == TGT_ALL) p = d_ap(p, " ALL");
+        *p = 0; n++;
+    }
+    /* block */
+    if (blk > 0 && n < 4) { p = d_ap(lines[n], "GAIN "); p = d_ai(p, blk);
+                            p = d_ap(p, " BLOCK"); *p = 0; n++; }
+    /* draw */
+    if (drw > 0 && n < 4) { p = d_ap(lines[n], "DRAW "); p = d_ai(p, drw); *p = 0; n++; }
+    /* special effect */
+    if (n < 4) {
+        p = lines[n]; int wrote = 1;
+        switch (cd->sp) {
+        case SP_VULN:   p = d_ap(p, "APPLY "); p = d_ai(p, v);
+                        p = d_ap(p, cd->target == TGT_ALL ? " VULN ALL" : " VULNERABLE"); break;
+        case SP_WEAK:   p = d_ap(p, "APPLY "); p = d_ai(p, v); p = d_ap(p, " WEAK"); break;
+        case SP_UPPERCUT:  p = d_ap(p, "APPLY "); p = d_ai(p, v); p = d_ap(p, " WEAK & VULN"); break;
+        case SP_SHOCKWAVE: p = d_ap(p, "APPLY "); p = d_ai(p, v); p = d_ap(p, " WEAK & VULN ALL"); break;
+        case SP_STR:    p = d_ap(p, "GAIN "); p = d_ai(p, v); p = d_ap(p, " STRENGTH"); break;
+        case SP_FLEX:   p = d_ap(p, "TEMP +"); p = d_ai(p, v); p = d_ap(p, " STRENGTH"); break;
+        case SP_METALLICIZE: p = d_ap(p, "END TURN: +"); p = d_ai(p, v); p = d_ap(p, " BLOCK"); break;
+        case SP_DEMONFORM:   p = d_ap(p, "EACH TURN: +"); p = d_ai(p, v); p = d_ap(p, " STR"); break;
+        case SP_FLAMEBARRIER: p = d_ap(p, "GAIN "); p = d_ai(p, v); p = d_ap(p, " THORNS"); break;
+        case SP_BARRICADE: p = d_ap(p, "BLOCK IS NOT LOST"); break;
+        case SP_ENTRENCH:  p = d_ap(p, "DOUBLE YOUR BLOCK"); break;
+        case SP_HEAVYBLADE: p = d_ap(p, "STRENGTH ADDED "); p = d_ai(p, v); p = d_ap(p, "X"); break;
+        case SP_BLOODLET:  p = d_ap(p, "LOSE 3 HP, +"); p = d_ai(p, v); p = d_ap(p, " ENERGY"); break;
+        case SP_DISARM:    p = d_ap(p, "ENEMY -"); p = d_ai(p, v); p = d_ap(p, " STRENGTH"); break;
+        case SP_ANGER:     p = d_ap(p, "ADD A COPY TO DISCARD"); break;
+        case SP_HEADBUTT:  p = d_ap(p, "DISCARD TO DRAW TOP"); break;
+        case SP_FEED:      p = d_ap(p, "IF FATAL: +"); p = d_ai(p, v); p = d_ap(p, " MAX HP"); break;
+        case SP_IMMOLATE:  p = d_ap(p, "ADD A BURN TO DISCARD"); break;
+        case SP_OFFERING:  p = d_ap(p, "LOSE 6HP +2E DRAW "); p = d_ai(p, v); break;
+        case SP_BURN:      p = d_ap(p, "END TURN: 2 DAMAGE"); break;
+        case SP_UNPLAYABLE: p = d_ap(p, "UNPLAYABLE"); break;
+        default: wrote = 0; break;
+        }
+        if (wrote) { *p = 0; n++; }
+    }
+    /* flags: ethereal / exhaust */
+    if (n < 4) {
+        p = lines[n]; char *st = p;
+        if (cd->sp == SP_ETHEREAL) p = d_ap(p, "ETHEREAL");
+        if (cd->exhaust) { if (p != st) p = d_ap(p, ", "); p = d_ap(p, "EXHAUST"); }
+        if (p != st) { *p = 0; n++; }
+    }
+    return n;
+}
+
 static void card_zoom(CardInst c)
 {
     const Card *cd = &cards[c.id];
@@ -210,13 +298,24 @@ static void card_zoom(CardInst c)
     /* live dmg/blk badge in the face text region */
     if (card_dmg(c))        txt_int(fx + 2, fy + 5, card_dmg(c), CLR_WHITE);
     else if (card_block(c)) txt_int(fx + 2, fy + 5, card_block(c), CLR_WHITE);
-    /* name / type / full desc below the card */
+    /* name / type / computed in-depth effect breakdown below the card */
     zoom_center(15, 12, card_name(c, nb), c.up ? CLR_GREEN : CLR_WHITE);
-    zoom_center(15, 14, type_str[cd->type], type_clr[cd->type]);
-    if (cd->desc[0]) zoom_center(15, 16, cd->desc, CLR_GRAY);
+    zoom_center(15, 13, type_str[cd->type], type_clr[cd->type]);
+    char dl[4][32];
+    int nl = card_detail(c, dl);
+    for (int i = 0; i < nl; i++)
+        zoom_center(15, 15 + i, dl[i], CLR_WHITE);
     zoom_center(15, 19, "ANY KEY: BACK", CLR_GRAY);
     for (;;) { vsync(); key_poll(); if (key_hit(KEY_ANY)) break; }
     bg2_clear();                        /* wipe the face; list backdrop = black */
+}
+
+/* public inspect: zoom an arbitrary card by id/upgrade (shop, reward). caller
+   must recompose its own screen afterward (zoom clears BG2 + reuses face slot 0). */
+void card_inspect(int id, int up)
+{
+    CardInst c = { (u8)id, (u8)up };
+    card_zoom(c);
 }
 
 /* one stat's before>after on row y; green = upgraded value. advances x, with

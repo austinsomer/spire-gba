@@ -108,6 +108,7 @@ void video_init(void)
     static const u8 energy[8] = {24,28,62,127,126,124,56,24};
     static const u8 shield[8] = {255,255,129,129,66,66,36,24};
     static const u8 dot[8]    = {0,0,24,60,60,24,0,0};
+    static const u8 orb[8]    = {60,126,255,255,255,255,126,60};
     load_tile1bpp(T_EDGE_T, edge_t, 1); load_tile1bpp(T_EDGE_B, edge_b, 1);
     load_tile1bpp(T_EDGE_L, edge_l, 1); load_tile1bpp(T_EDGE_R, edge_r, 1);
     load_tile1bpp(T_CORN_TL, corn_tl, 1); load_tile1bpp(T_CORN_TR, corn_tr, 1);
@@ -118,6 +119,7 @@ void video_init(void)
     load_tile_rows(T_ENERGY, energy, 1, 0);
     load_tile_rows(T_SHIELD, shield, 1, 0);
     load_tile1bpp(T_DOT, dot, 1);
+    load_tile_rows(T_ORB, orb, 1, 0);   /* filled disc, transparent corners */
 
     txt_clear();
     ui_clear();
@@ -568,3 +570,54 @@ void sfx_hit(void)
     sfxpcm_play((alt ^= 1) ? SFXP_HIT : SFXP_SLASH);
 }
 void sfx_coin(void)  { if (!opt_sfx) return; sfxpcm_play(SFXP_COIN); }
+
+/* ---- screen transition: hardware fade-to-black + mosaic "zoom" ----
+   fx_out() darkens+pixelates the current screen (map) as it leaves; the
+   destination composes under black and calls fx_reveal() to fade back in.
+   Both use BLDY (brightness-down on every layer) + BG mosaic — content-
+   agnostic, so one routine works from any screen. fx_pending gates reveal
+   so screens NOT reached via a faded exit don't fade. */
+#define FX_FRAMES     10
+#define FX_MOSAIC_MAX 6
+static u8 fx_pending;
+
+static void fx_step(int y, int m)
+{
+    REG_BLDY = (u16)y;
+    REG_MOSAIC = (u16)((m << 4) | m);   /* BG mosaic H|V (low byte) */
+}
+
+static void fx_blend_on(void)
+{
+    REG_BG0CNT |= BG_MOSAIC;
+    REG_BG1CNT |= BG_MOSAIC;
+    REG_BG2CNT |= BG_MOSAIC;
+    REG_BLDCNT = 0x3F | (3 << 6);       /* all layers 1st target, brightness-down (to black) */
+}
+
+void fx_out(void)
+{
+    fx_blend_on();
+    for (int f = 1; f <= FX_FRAMES; f++) {
+        fx_step(f * 16 / FX_FRAMES, f * FX_MOSAIC_MAX / FX_FRAMES);
+        vsync();
+    }
+    fx_step(16, FX_MOSAIC_MAX);         /* hold full black */
+    fx_pending = 1;
+}
+
+void fx_reveal(void)
+{
+    if (!fx_pending) return;
+    fx_pending = 0;
+    fx_blend_on();
+    for (int f = FX_FRAMES; f >= 0; f--) {
+        fx_step(f * 16 / FX_FRAMES, f * FX_MOSAIC_MAX / FX_FRAMES);
+        vsync();
+    }
+    REG_BLDCNT = 0;
+    REG_MOSAIC = 0;
+    REG_BG0CNT &= ~BG_MOSAIC;
+    REG_BG1CNT &= ~BG_MOSAIC;
+    REG_BG2CNT &= ~BG_MOSAIC;
+}
