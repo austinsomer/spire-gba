@@ -548,7 +548,7 @@ static void draw_enemies(int cursor, int targeting)
 static void draw_player(void)
 {
     obj_show(OAM_SHADOW0, SPR_SHADOW, 24, STAGE_Y + 8);
-    obj_show(OAM_PLAYER, SPR_IRONCLAD, 24, STAGE_Y);
+    obj_show_hero(OAM_PLAYER, 8, 26);   /* 64x64 hero, feet land at y88 */
     /* framed hp bar under sprite, in-arena */
     hp_bar_at(2, 11, 6, run.hp, run.maxhp);
     /* status lines with icons, top-left dark edge */
@@ -595,9 +595,9 @@ static void stamp_card(int s, int i, int sel)
     card_face_stamp(s, x, row);
     /* cost badge: opaque orb (yellow=affordable / dkred=not) + bold digit on
        top — reads over any card art (old flame+digit collided in one cell) */
-    ui_tile(x, row, T_ORB, can ? CLR_YELLOW : CLR_DKRED);
-    if (cd->cost == COST_X) txt_putc(x, row, 'X', can ? CLR_DKRED : CLR_WHITE);
-    else txt_int(x, row, card_cost(c), can ? CLR_DKRED : CLR_WHITE);
+    ui_tile(x, row, T_ORB, can ? CLR_DKRED : CLR_YELLOW);
+    if (cd->cost == COST_X) txt_putc(x, row, 'X', can ? CLR_WHITE : CLR_DKRED);
+    else txt_int(x, row, card_cost(c), can ? CLR_WHITE : CLR_DKRED);
     if (c.up) txt_putc(x + 3, row, '+', CLR_GREEN);
     /* live dmg/blk in the text box of the face */
     if (card_dmg(c) || cd->sp == SP_BODYSLAM) {
@@ -638,7 +638,7 @@ static void draw_hand(int sel)
 static void nudge_sprite(int tgt, int dx)
 {
     if (tgt < 0) {
-        obj_show(OAM_PLAYER, SPR_IRONCLAD, 24 + dx, STAGE_Y);
+        obj_show_hero(OAM_PLAYER, 8 + dx, 26);
         return;
     }
     Enemy *e = &en[tgt];

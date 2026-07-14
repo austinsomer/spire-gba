@@ -213,8 +213,8 @@ static char *d_ai(char *p, int v)
 }
 
 /* fill up to 4 human-readable lines describing exactly what the card does:
-   total damage (incl. multi-hit), block, draw, applied statuses w/ values,
-   and exhaust/ethereal flags. returns the line count. */
+   energy cost, total damage (incl. multi-hit), block, draw, applied statuses
+   w/ values, and exhaust/ethereal flags. returns the line count. */
 static int card_detail(CardInst c, char lines[][32])
 {
     const Card *cd = &cards[c.id];
@@ -222,6 +222,13 @@ static int card_detail(CardInst c, char lines[][32])
     int hits = cd->hits ? cd->hits : 1;
     int n = 0;
     char *p;
+
+    /* energy cost (X-cost cards spend all energy) */
+    p = d_ap(lines[n], "COST ");
+    if (cd->cost == COST_X) p = d_ap(p, "X");
+    else                    p = d_ai(p, card_cost(c));
+    p = d_ap(p, " ENERGY");
+    *p = 0; n++;
 
     /* damage */
     if (cd->sp == SP_BODYSLAM) {
