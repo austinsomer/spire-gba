@@ -96,6 +96,7 @@ static int menu(int x, int y, const char *const *items, int n, int allow_back)
             txt_putc(x - 1, y + i, i == sel ? '>' : ' ', CLR_YELLOW);
             txt_put(x, y + i, items[i], i == sel ? CLR_WHITE : CLR_GRAY);
         }
+        fx_reveal();   /* fade in the first composed menu frame (rest/event) */
         for (;;) {
             vsync(); key_poll();
             if (key_repeat(KEY_UP) && sel > 0)   { sel--; sfx_blip(); break; }
@@ -179,13 +180,20 @@ static int card_choice(void)
         }
         /* selected-card detail line */
         txt_put(1, 13, cards[c3[sel]].desc, CLR_GRAY);
-        txt_put(1, 17, "A:TAKE B:SKIP", CLR_GRAY);
+        txt_put(1, 17, "A:TAKE  SEL:INFO  B:SKIP", CLR_GRAY);
         for (;;) {
             vsync(); key_poll();
             if (key_repeat(KEY_LEFT)  && sel > 0) { sel--; sfx_blip(); break; }
             if (key_repeat(KEY_RIGHT) && sel < 2) { sel++; sfx_blip(); break; }
             if (key_repeat(KEY_UP)    && sel > 0) { sel--; sfx_blip(); break; }
             if (key_repeat(KEY_DOWN)  && sel < 2) { sel++; sfx_blip(); break; }
+            if (key_hit(KEY_SELECT)) {          /* inspect: full breakdown */
+                card_inspect(c3[sel], 0);
+                scene_none();
+                for (int i = 0; i < 3; i++) { card_face_load(i, c3[i]);
+                                              card_face_stamp(i, RCARD_X(i), RCARD_Y); }
+                break;
+            }
             if (key_hit(KEY_A)) { sfx_ok(); scene_none(); return c3[sel]; }
             if (key_hit(KEY_B)) { sfx_bad(); scene_none(); return -1; }
         }
@@ -308,6 +316,7 @@ void treasure_screen(void)
     if (r != 0xFF) { relic_add(r); txt_put(4, 9, relic_names[r], CLR_CYAN); }
     txt_put(4, 12, "PRESS A", CLR_GRAY);
     sfx_heal();
+    fx_reveal();   /* fade in the composed treasure frame */
     for (;;) { vsync(); key_poll(); if (key_hit(KEY_A)) break; }
     gstate = ST_MAP;
 }
@@ -392,12 +401,24 @@ void shop_screen(void)
             txt_put(1, 16, card_name(ci, nb), CLR_WHITE);
             txt_put(1, 17, cards[ids[sel]].desc, CLR_GRAY);
         }
-        txt_put(1, 19, "A:BUY B:LEAVE", CLR_GRAY);
+        txt_put(1, 19, "A:BUY  SEL:INFO  B:LEAVE", CLR_GRAY);
+        fx_reveal();   /* fade in the first composed shop frame */
 
         for (;;) {
             vsync(); key_poll();
             if (key_repeat(KEY_UP) && sel > 0)   { sel--; sfx_blip(); break; }
             if (key_repeat(KEY_DOWN) && sel < 8) { sel++; sfx_blip(); break; }
+            /* inspect the highlighted card (full effect breakdown) */
+            if (key_hit(KEY_SELECT) && sel < 5 && !sold[sel]) {
+                obj_hide_all();
+                card_inspect(ids[sel], 0);
+                scene_shop();
+                obj_show(6, SPR_LOOTER, 200, 128);
+                for (int k = 0; k < 5; k++)
+                    if (!sold[k]) { card_face_load(k, ids[k]);
+                                    card_face_stamp(k, SCARD_X(k), SCARD_Y); }
+                break;
+            }
             if (key_hit(KEY_B)) { obj_hide_all(); gstate = ST_MAP; return; }
             if (key_hit(KEY_A)) {
                 if (sel < 5 && !sold[sel] && run.gold >= price[sel]) {

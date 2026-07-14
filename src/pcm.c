@@ -18,13 +18,14 @@
 #define PCM_TIMER   (65536 - 1254)   /* 16777216/1254 = 13379.4 Hz */
 #define PCM_PERFRAME 224
 
-extern const s8  pcm_title[],  pcm_run[];
-extern const u32 pcm_title_len, pcm_run_len;
+extern const s8  pcm_title[],  pcm_run[],  pcm_intro[];
+extern const u32 pcm_title_len, pcm_run_len, pcm_intro_len;
 
 static const s8 *cur_pcm;
 static u32 cur_len, pos;
 static s8  cur_trk = -1;
 static u8  playing;
+static u8  cur_loop;                 /* 0 = one-shot (intro): stop at end, don't loop */
 
 static void dma_start(const s8 *src)
 {
@@ -39,8 +40,11 @@ void pcm_play(int trk)
 {
     if (trk == cur_trk && playing) return;
     cur_trk = (s8)trk;
-    cur_pcm = trk == PCM_TITLE ? pcm_title : pcm_run;
-    cur_len = trk == PCM_TITLE ? pcm_title_len : pcm_run_len;
+    switch (trk) {
+    case PCM_TITLE: cur_pcm = pcm_title; cur_len = pcm_title_len; cur_loop = 1; break;
+    case PCM_INTRO: cur_pcm = pcm_intro; cur_len = pcm_intro_len; cur_loop = 0; break;
+    default:        cur_pcm = pcm_run;   cur_len = pcm_run_len;   cur_loop = 1; break;
+    }
     pos = 0;
     playing = 1;
     if (!opt_music) return;             /* starts when re-enabled */
@@ -127,8 +131,12 @@ void pcm_tick(void)
     if (!playing || !opt_music) return;
     pos += PCM_PERFRAME;
     if (pos >= cur_len) {
-        pos = 0;
-        REG_SOUNDCNT_H |= 0x0800;
-        dma_start(cur_pcm);             /* loop (in vblank, seamless) */
+        if (cur_loop) {
+            pos = 0;
+            REG_SOUNDCNT_H |= 0x0800;
+            dma_start(cur_pcm);         /* loop (in vblank, seamless) */
+        } else {
+            pcm_stop();                 /* one-shot (intro) ended: stop cleanly */
+        }
     }
 }

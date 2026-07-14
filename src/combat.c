@@ -384,9 +384,12 @@ static int play_card(int hi, int target)
 
     post_damage_checks();
 
-    /* move card out of hand */
-    if (cd->exhaust) pile_exhaust_card(hi);
-    else pile_discard_card(hi);
+    /* move card out of hand: powers leave play for the combat (once-per-combat,
+       return to deck next combat), exhaust cards go to the exhaust pile, the
+       rest go to discard */
+    if (cd->type == CT_POWER) pile_remove_hand(hi);
+    else if (cd->exhaust)     pile_exhaust_card(hi);
+    else                      pile_discard_card(hi);
     sfx_card();
     return 1;
 }
@@ -545,7 +548,7 @@ static void draw_enemies(int cursor, int targeting)
 static void draw_player(void)
 {
     obj_show(OAM_SHADOW0, SPR_SHADOW, 24, STAGE_Y + 8);
-    obj_show(OAM_PLAYER, SPR_IRONCLAD, 24, STAGE_Y);
+    obj_show_hero(OAM_PLAYER, 8, 26);   /* 64x64 hero, feet land at y88 */
     /* framed hp bar under sprite, in-arena */
     hp_bar_at(2, 11, 6, run.hp, run.maxhp);
     /* status lines with icons, top-left dark edge */
@@ -570,10 +573,7 @@ static void draw_player(void)
     hud_stamp(H_DISCARDPILE, 28, 17);
     txt_int(26, 18, piles.ndiscard, CLR_ORANGE);
     txt_put(25, 17, "UP", CLR_ORANGE);       /* UP opens discard pile */
-    /* exhaust mini-count in the left gutter (DOWN opens it) */
-    txt_put(0, 15, "EX", CLR_GRAY);
-    txt_int(2, 15, piles.nexhaust, CLR_GRAY);
-    txt_put(0, 16, "DN", CLR_GRAY);
+    /* (exhaust pile still opens on DOWN; gutter label removed per user) */
 }
 
 /* hand: 5 visible slots, 40x56 faces overlapped 8px (cols 4/8/12/16/20),
@@ -593,9 +593,10 @@ static void stamp_card(int s, int i, int sel)
         face_loaded[s] = c.id + 1;
     }
     card_face_stamp(s, x, row);
-    /* live cost orb over the baked one (upgrade/energy aware) */
-    ui_tile(x, row, T_ENERGY, CLR_YELLOW);
-    if (cd->cost == COST_X) txt_putc(x, row, 'X', CLR_WHITE);
+    /* cost badge: opaque orb (yellow=affordable / dkred=not) + bold digit on
+       top — reads over any card art (old flame+digit collided in one cell) */
+    ui_tile(x, row, T_ORB, can ? CLR_DKRED : CLR_YELLOW);
+    if (cd->cost == COST_X) txt_putc(x, row, 'X', can ? CLR_WHITE : CLR_DKRED);
     else txt_int(x, row, card_cost(c), can ? CLR_WHITE : CLR_DKRED);
     if (c.up) txt_putc(x + 3, row, '+', CLR_GREEN);
     /* live dmg/blk in the text box of the face */
@@ -615,7 +616,7 @@ static void anim_card_play(int sel)
     card_face_stamp(s, x, 12);
     bg2_fill(x, 19, 5, 1, 0);           /* row it vacated */
     for (int f = 0; f < 10; f++) {
-        ui_tile(x, 12, T_ENERGY, (f & 2) ? CLR_WHITE : CLR_YELLOW);
+        ui_tile(x, 12, T_ORB, (f & 2) ? CLR_WHITE : CLR_YELLOW);
         vsync();
     }
 }
@@ -637,7 +638,7 @@ static void draw_hand(int sel)
 static void nudge_sprite(int tgt, int dx)
 {
     if (tgt < 0) {
-        obj_show(OAM_PLAYER, SPR_IRONCLAD, 24 + dx, STAGE_Y);
+        obj_show_hero(OAM_PLAYER, 8 + dx, 26);
         return;
     }
     Enemy *e = &en[tgt];
@@ -851,6 +852,7 @@ void combat_screen(int encounter)
     for (;;) {
         if (sel >= piles.nhand) sel = piles.nhand ? piles.nhand - 1 : 0;
         draw_all(sel, -1, 0);
+        fx_reveal();   /* fade in the first composed combat frame */
 
         int act = 0; /* 0 none, 1 play, 2 end turn */
 #ifdef AUTOPLAY

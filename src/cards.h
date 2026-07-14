@@ -101,6 +101,7 @@ int  pile_draw(int n);                 /* draw n, reshuffle as needed; returns d
 void pile_discard_hand(void);          /* end of turn (ethereal → exhaust) */
 void pile_discard_card(int hand_i);    /* play → discard */
 void pile_exhaust_card(int hand_i);
+void pile_remove_hand(int hand_i);     /* power played: leave play, no pile */
 void pile_add_discard(u8 card_id);     /* Anger/Immolate etc */
 void pile_shuffle_draw(void);
 
@@ -109,6 +110,7 @@ void pile_shuffle_draw(void);
    but shows a before>after upgrade preview for the selected card (SMITH).
    pick_mode 0 → view only; A zooms the highlighted card (big face), returns -1. */
 int pile_browse(const CardInst *arr, int n, const char *title, int pick_mode);
+void card_inspect(int id, int up);     /* big-card zoom w/ full breakdown (shop/reward) */
 
 /* deck browser: shows run.deck (thin wrapper over pile_browse).
    pick_mode 1 → index or -1 (B). pick_mode 2 → index + upgrade preview.

@@ -28,6 +28,11 @@ typedef volatile u32 vu32;
 #define REG_BG1VOFS     REG(0x04000016)
 #define REG_BG2HOFS     REG(0x04000018)
 #define REG_BG2VOFS     REG(0x0400001A)
+#define REG_MOSAIC      REG(0x0400004C)
+#define REG_BLDCNT      REG(0x04000050)
+#define REG_BLDALPHA    REG(0x04000052)
+#define REG_BLDY        REG(0x04000054)
+#define BG_MOSAIC       (1 << 6)     /* mosaic enable bit in BGxCNT */
 
 #define DCNT_MODE0      0x0000
 #define DCNT_MODE4      0x0004

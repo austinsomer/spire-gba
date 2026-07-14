@@ -13,3 +13,9 @@ pcm_run:
     .global pcm_run_len
     .align 2
 pcm_run_len: .word 2999360
+    .global pcm_intro
+pcm_intro:
+    .incbin "assets/music/intro.pcm"
+    .global pcm_intro_len
+    .align 2
+pcm_intro_len: .word 284032

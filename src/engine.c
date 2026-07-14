@@ -108,6 +108,7 @@ void video_init(void)
     static const u8 energy[8] = {24,28,62,127,126,124,56,24};
     static const u8 shield[8] = {255,255,129,129,66,66,36,24};
     static const u8 dot[8]    = {0,0,24,60,60,24,0,0};
+    static const u8 orb[8]    = {60,126,255,255,255,255,126,60};
     load_tile1bpp(T_EDGE_T, edge_t, 1); load_tile1bpp(T_EDGE_B, edge_b, 1);
     load_tile1bpp(T_EDGE_L, edge_l, 1); load_tile1bpp(T_EDGE_R, edge_r, 1);
     load_tile1bpp(T_CORN_TL, corn_tl, 1); load_tile1bpp(T_CORN_TR, corn_tr, 1);
@@ -118,6 +119,7 @@ void video_init(void)
     load_tile_rows(T_ENERGY, energy, 1, 0);
     load_tile_rows(T_SHIELD, shield, 1, 0);
     load_tile1bpp(T_DOT, dot, 1);
+    load_tile_rows(T_ORB, orb, 1, 0);   /* filled disc, transparent corners */
 
     txt_clear();
     ui_clear();
@@ -277,6 +279,9 @@ void ui_bar(int x, int y, int wtiles, int val, int max, int clr)
 /* ---- obj sprites ---- */
 #define SPRITES_DATA
 #include "sprites.h"
+#include "heroimg.h"          /* 64x64 player hero sprite (tiles + 15-color pal) */
+#define HERO_TILE 512         /* OBJ VRAM tile base (past the 32x32 sprites) */
+#define HERO_BANK 14          /* free OBJ palette bank (0-13 used) */
 
 void sprites_load(void)
 {
@@ -291,6 +296,13 @@ void sprites_load(void)
         for (int c = 0; c < 15; c++)
             MEM_PAL_OBJ[s * 16 + 1 + c] = sprite_pals[s][c];
     }
+    /* 64x64 player hero: tiles at HERO_TILE, palette in bank HERO_BANK */
+    vu16 *hdst = (vu16 *)0x06010000 + HERO_TILE * 16;
+    const u16 *hsrc = (const u16 *)hero_tiles;
+    for (u32 i = 0; i < sizeof(hero_tiles) / 2; i++) hdst[i] = hsrc[i];
+    MEM_PAL_OBJ[HERO_BANK * 16] = 0;
+    for (int c = 0; c < 15; c++)
+        MEM_PAL_OBJ[HERO_BANK * 16 + 1 + c] = hero_pal[c];
 }
 
 void obj_show(int i, int sprite, int x, int y)
@@ -310,6 +322,15 @@ void obj_show_big(int i, int sprite, int x, int y)
     oam_shadow[i].attr2 = (u16)(ATTR2_TILE(sprite_tile_ofs[sprite]) |
                                 ATTR2_PAL(sprite_pal_bank[sprite]) |
                                 ATTR2_PRIO(2));
+}
+
+/* 64x64 player hero sprite (dedicated tiles/bank, not in the 32x32 table) */
+void obj_show_hero(int i, int x, int y)
+{
+    oam_shadow[i].attr0 = (u16)(ATTR0_Y(y) | ATTR0_SQUARE);
+    oam_shadow[i].attr1 = (u16)(ATTR1_X(x) | ATTR1_SIZE(3));   /* 64x64 */
+    oam_shadow[i].attr2 = (u16)(ATTR2_TILE(HERO_TILE) |
+                                ATTR2_PAL(HERO_BANK) | ATTR2_PRIO(2));
 }
 
 void obj_hide(int i) { oam_shadow[i].attr0 = ATTR0_HIDE; }
@@ -568,3 +589,74 @@ void sfx_hit(void)
     sfxpcm_play((alt ^= 1) ? SFXP_HIT : SFXP_SLASH);
 }
 void sfx_coin(void)  { if (!opt_sfx) return; sfxpcm_play(SFXP_COIN); }
+
+/* ---- screen transition: hardware fade-to-black + mosaic "zoom" ----
+   fx_out() darkens+pixelates the current screen (map) as it leaves; the
+   destination composes under black and calls fx_reveal() to fade back in.
+   Both use BLDY (brightness-down on every layer) + BG mosaic — content-
+   agnostic, so one routine works from any screen. fx_pending gates reveal
+   so screens NOT reached via a faded exit don't fade. */
+#define FX_FRAMES     10
+#define FX_MOSAIC_MAX 6
+static u8 fx_pending;
+
+static void fx_step(int y, int m)
+{
+    REG_BLDY = (u16)y;
+    REG_MOSAIC = (u16)((m << 4) | m);   /* BG mosaic H|V (low byte) */
+}
+
+static void fx_blend_on(void)
+{
+    REG_BG0CNT |= BG_MOSAIC;
+    REG_BG1CNT |= BG_MOSAIC;
+    REG_BG2CNT |= BG_MOSAIC;
+    REG_BLDCNT = 0x3F | (3 << 6);       /* all layers 1st target, brightness-down (to black) */
+}
+
+void fx_out(void)
+{
+    fx_blend_on();
+    for (int f = 1; f <= FX_FRAMES; f++) {
+        fx_step(f * 16 / FX_FRAMES, f * FX_MOSAIC_MAX / FX_FRAMES);
+        vsync();
+    }
+    fx_step(16, FX_MOSAIC_MAX);         /* hold full black */
+    fx_pending = 1;
+}
+
+void fx_reveal(void)
+{
+    if (!fx_pending) return;
+    fx_pending = 0;
+    fx_blend_on();
+    for (int f = FX_FRAMES; f >= 0; f--) {
+        fx_step(f * 16 / FX_FRAMES, f * FX_MOSAIC_MAX / FX_FRAMES);
+        vsync();
+    }
+    REG_BLDCNT = 0;
+    REG_MOSAIC = 0;
+    REG_BG0CNT &= ~BG_MOSAIC;
+    REG_BG1CNT &= ~BG_MOSAIC;
+    REG_BG2CNT &= ~BG_MOSAIC;
+}
+
+/* ---- plain brightness fades (no mosaic) for the intro -> title hand-off ---- */
+static u8 g_fadein_pending;
+static void bldy_ramp(int a, int b)
+{
+    REG_BLDCNT = 0x3F | (3 << 6);       /* all layers, brightness-down (to black) */
+    int step = (b > a) ? 1 : -1;
+    for (int y = a; ; y += step) { REG_BLDY = (u16)y; vsync(); if (y == b) break; }
+}
+void fade_to_black(void) { bldy_ramp(0, 16); g_fadein_pending = 1; }
+void fade_from_black(void)
+{
+    if (!g_fadein_pending) return;      /* only after a real fade-out (intro) */
+    g_fadein_pending = 0;
+    bldy_ramp(16, 0);
+    REG_BLDCNT = 0; REG_BLDY = 0;
+}
+/* ungated fades for the pre-intro slides (explicit in/out per slide) */
+void fade_out(void) { bldy_ramp(0, 16); }
+void fade_in(void)  { bldy_ramp(16, 0); REG_BLDCNT = 0; REG_BLDY = 0; }

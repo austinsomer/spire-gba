@@ -561,10 +561,12 @@ void map_screen(void)
             if (key_hit(KEY_START)) {
                 obj_hide_all();
                 if (pause_menu()) { bg2_scroll(0); return; }  /* SAVE & QUIT */
-                break;   /* recompose */
+                map_tiles_ready = 0;   /* relic_view's hud_load clobbered cb1 63..151 */
+                break;   /* recompose rebuilds pattern tiles */
             }
             if (key_hit(KEY_A)) {
                 sfx_ok();
+                fx_out();               /* encounter transition: fade current map out */
                 bg2_scroll(0);
                 if (boss_mode) { route_room(ROOM_BOSS); return; }
                 run.mapcol = sel;

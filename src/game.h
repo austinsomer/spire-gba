@@ -21,6 +21,7 @@ enum {
     T_ARROW = 148,     /* right arrow */
     T_HEART = 149, T_GOLDPT = 150, T_ENERGY = 151, T_SHIELD = 152,
     T_DOT = 153,
+    T_ORB = 154,       /* filled disc: opaque cost-badge backing */
 };
 
 void video_init(void);
@@ -84,6 +85,7 @@ void scene_none(void);
 void sprites_load(void);
 void obj_show(int oam_i, int sprite, int x, int y);
 void obj_show_big(int oam_i, int sprite, int x, int y);  /* 2x scaled */
+void obj_show_hero(int oam_i, int x, int y);             /* 64x64 player sprite */
 void obj_hide(int oam_i);
 void obj_hide_all(void);
 
@@ -96,6 +98,14 @@ void sfx_bad(void);          /* error/cancel (falling womp) */
 void sfx_heal(void);         /* healing */
 void sfx_card(void);         /* card played */
 void sfx_coin(void);         /* gold gained / purchase */
+void fx_out(void);           /* fade+mosaic the current screen to black (on exit) */
+void fx_reveal(void);        /* fade the destination in from black (no-op if no pending fade) */
+void fade_to_black(void);    /* plain brightness fade to black (intro) */
+void fade_from_black(void);  /* plain fade up from black (no-op if no pending fade) */
+void fade_in(void);          /* ungated fade up from black (slides) */
+void fade_out(void);         /* ungated fade to black (slides) */
+void slides_play(void);      /* pre-intro splash slides (fade in / hold 2s / fade out) */
+void intro_play(void);       /* cold-boot intro video, ends faded to black */
 
 /* sound settings (persist for the session; toggled in settings menu) */
 extern u8 opt_music, opt_sfx;
@@ -105,7 +115,7 @@ int  pause_menu(void);       /* in-run overlay (START); 1 = quit to title */
 
 /* PCM music streaming (src/pcm.c): looping 8-bit track over FIFO A.
    PSG sfx layer on top in hardware. */
-enum { PCM_TITLE, PCM_RUN };
+enum { PCM_TITLE, PCM_RUN, PCM_INTRO };
 void pcm_play(int trk);      /* no-op if trk already playing */
 void pcm_stop(void);
 void pcm_gate(void);         /* apply opt_music (pause/resume) */
