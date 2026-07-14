@@ -515,6 +515,8 @@ void map_screen(void)
                     bg2_stamp((NPX(c) - 16) >> 3, (NPY(run.floor) - 4) >> 3,
                               DOT_TILE, 15, 0);
 
+        fx_reveal();   /* fade in the first composed map frame (no-op without pending fade) */
+
         /* camera centered on current row (or boss) */
         int target_y = boss_mode ? BOSS_Y + 4 : NPY(run.floor);
         int cam = target_y - 80;

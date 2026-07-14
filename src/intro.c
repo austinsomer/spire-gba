@@ -121,7 +121,6 @@ void intro_play(void)
         if (key_hit(KEY_START | KEY_A)) break;
     }
     pcm_stop();                                    /* stop intro music on start press */
-    sfx_ok();
     vsync();
     REG_DISPCNT = DCNT_MODE4 | DCNT_BG2;           /* fade the clean scene */
     fade_to_black();                               /* title_screen fades up */

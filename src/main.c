@@ -82,6 +82,7 @@ void title_screen(void)
         }
 
         fade_from_black();      /* seamless fade up from the intro (no-op otherwise) */
+        fx_reveal();            /* fade in from any pending map/screen → title transition */
 
         if (sel == 1 && !have) sel = 0;
 
@@ -105,13 +106,14 @@ void title_screen(void)
         }
         sfx_ok();
 
-        /* restore tiled video state */
-        video_init();
-        sprites_load();
-        bg2_load();
-        txt2x_reset();
-
         if (sel == 0) {
+            fx_out();           /* title → neow transition: fade title out before
+                                   restoring tiled video state, so the user never
+                                   sees a 1-frame tiled-BG flash on the hand-off */
+            video_init();
+            sprites_load();
+            bg2_load();
+            txt2x_reset();
             rng_seed(frame_count * 2654435761u + 12345);
             run_new();
             neow_screen();
@@ -119,9 +121,22 @@ void title_screen(void)
             return;
         }
         if (sel == 1) {
-            if (save_run_load()) { gstate = ST_MAP; return; }
+            if (save_run_load()) {
+                fx_out();       /* title → map transition: same reasoning as sel==0 */
+                video_init();
+                sprites_load();
+                bg2_load();
+                txt2x_reset();
+                gstate = ST_MAP;
+                return;
+            }
             continue;            /* corrupt save: back to menu */
         }
+        /* settings path: restore tiled state for settings_screen */
+        video_init();
+        sprites_load();
+        bg2_load();
+        txt2x_reset();
         settings_screen();   /* returns here; loop reloads the bitmap */
     }
 }
@@ -141,7 +156,7 @@ int main(void)
 #elif defined(BATTLETEST)
     rng_seed(7); run_new(); map_pending_encounter = 1; gstate = ST_COMBAT;
 #elif defined(NEOWTEST)
-    rng_seed(7); run_new(); neow_screen(); gstate = ST_MAP;  /* neow peek */
+    rng_seed(7); run_new(); neow_screen(); gstate = ST_MAP;  /* neow peek (no fade — screenshot test) */
 #elif defined(TITLETEST)
     gstate = ST_TITLE;
 #else

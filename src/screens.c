@@ -240,6 +240,7 @@ void reward_screen(int elite)
         }
         case 3:
             if (run_has_relic(RLC_BURNINGBLOOD)) heal(6);
+            fx_out();           /* reward → map transition: fade reward out */
             gstate = ST_MAP; return;
         }
     }
@@ -263,15 +264,15 @@ void neow_screen(void)
         txt_put2x(1, 2, "NEOWS BLESSING", CLR_CYAN);
         txt_put(4, 6, "A WHALE OFFERS A GIFT", CLR_GRAY);
         int m = menu(6, 9, items, 4, 0);
-        if (m == 0) { run.maxhp += 8; run.hp += 8; sfx_ok(); return; }
-        if (m == 1) { run.gold += 100; sfx_ok(); return; }
+        if (m == 0) { run.maxhp += 8; run.hp += 8; sfx_ok(); fx_out(); return; }
+        if (m == 1) { run.gold += 100; sfx_ok(); fx_out(); return; }
         if (m == 2) {
             int i = deck_browse("REMOVE WHICH?", 1);
-            if (i >= 0) { deck_remove(i); sfx_ok(); return; }
+            if (i >= 0) { deck_remove(i); sfx_ok(); fx_out(); return; }
         } else { /* m == 3 */
             reward_elite = 0;
             int id = card_choice();
-            if (id >= 0) { deck_add(id); sfx_ok(); return; }
+            if (id >= 0) { deck_add(id); sfx_ok(); fx_out(); return; }
         }
         /* sub-picker cancelled: fall through to redraw the Neow menu */
     }
@@ -298,6 +299,7 @@ void rest_screen(void)
         }
         if (m == 2) break;
     }
+    fx_out();               /* rest → map transition: fade rest out */
     gstate = ST_MAP;
 }
 
@@ -318,6 +320,7 @@ void treasure_screen(void)
     sfx_heal();
     fx_reveal();   /* fade in the composed treasure frame */
     for (;;) { vsync(); key_poll(); if (key_hit(KEY_A)) break; }
+    fx_out();       /* treasure → map transition: fade treasure out */
     gstate = ST_MAP;
 }
 
@@ -419,7 +422,7 @@ void shop_screen(void)
                                     card_face_stamp(k, SCARD_X(k), SCARD_Y); }
                 break;
             }
-            if (key_hit(KEY_B)) { obj_hide_all(); gstate = ST_MAP; return; }
+            if (key_hit(KEY_B)) { obj_hide_all(); fx_out(); gstate = ST_MAP; return; }
             if (key_hit(KEY_A)) {
                 if (sel < 5 && !sold[sel] && run.gold >= price[sel]) {
                     run.gold -= price[sel]; deck_add(ids[sel]); sold[sel] = 1; sfx_coin();
@@ -436,7 +439,7 @@ void shop_screen(void)
                     for (int k = 0; k < 5; k++)
                         if (!sold[k]) card_face_stamp(k, SCARD_X(k), SCARD_Y);
                     if (i >= 0) { run.gold -= 75; deck_remove(i); removed = 1; sfx_ok(); }
-                } else if (sel == 8) { obj_hide_all(); gstate = ST_MAP; return; }
+                } else if (sel == 8) { obj_hide_all(); fx_out(); gstate = ST_MAP; return; }
                 else sfx_bad();
                 break;
             }
@@ -460,7 +463,7 @@ void event_screen(void)
             int m = menu(4, 7, it, 2, 0);
             if (m == 0) heal(run.maxhp / 3);
             else { run.maxhp += 5; run.hp += 5; sfx_heal(); }
-            gstate = ST_MAP; return;
+            fx_out(); gstate = ST_MAP; return;
         }
         case 1: {
             header("EVENT: GOLDEN IDOL", CLR_YELLOW);
@@ -469,8 +472,8 @@ void event_screen(void)
             static const char *const it[] = {"TAKE (+40G, 8 DMG)", "LEAVE"};
             int m = menu(4, 7, it, 2, 0);
             if (m == 0) { run.gold += 40; run.hp -= 8; sfx_hit();
-                          if (run.hp <= 0) { run.hp = 0; gstate = ST_GAMEOVER; return; } }
-            gstate = ST_MAP; return;
+                          if (run.hp <= 0) { run.hp = 0; fx_out(); gstate = ST_GAMEOVER; return; } }
+            fx_out(); gstate = ST_MAP; return;
         }
         case 2: {
             header("EVENT: THE CLERIC", CLR_GREEN);
@@ -484,7 +487,7 @@ void event_screen(void)
                 else continue;
             }
             else if (m != 2) { sfx_bad(); continue; }
-            gstate = ST_MAP; return;
+            fx_out(); gstate = ST_MAP; return;
         }
         default: {
             header("EVENT: LIVING WALL", CLR_PURPLE);
@@ -497,7 +500,7 @@ void event_screen(void)
             if (m == 0) deck_remove(i);
             else run.deck[i].up = 1;
             sfx_ok();
-            gstate = ST_MAP; return;
+            fx_out(); gstate = ST_MAP; return;
         }
         }
     }
@@ -515,9 +518,10 @@ void gameover_screen(void)
     txt_put(8, 9, "FLOOR", CLR_GRAY); txt_int(14, 9, run.floor, CLR_WHITE);
     txt_put(8, 11, "PRESS START", CLR_GRAY);
     sfx_bad();
+    fx_reveal();   /* fade in the composed gameover frame */
     for (;;) {
         vsync(); key_poll();
-        if (key_hit(KEY_START | KEY_A)) { gstate = ST_TITLE; return; }
+        if (key_hit(KEY_START | KEY_A)) { fx_out(); gstate = ST_TITLE; return; }
     }
 }
 
@@ -534,9 +538,10 @@ void victory_screen(void)
     txt_putc(xx, 10, '/', CLR_GRAY); txt_int(xx + 1, 10, run.maxhp, CLR_GRAY);
     txt_put(8, 12, "PRESS START", CLR_WHITE);
     sfx_heal();
+    fx_reveal();   /* fade in the composed victory frame */
     for (;;) {
         vsync(); key_poll();
-        if (key_hit(KEY_START | KEY_A)) { gstate = ST_TITLE; return; }
+        if (key_hit(KEY_START | KEY_A)) { fx_out(); gstate = ST_TITLE; return; }
     }
 }
 
@@ -670,7 +675,7 @@ int pause_menu(void)
                                 deck_browse("DECK", 0); break; }
                 if (sel == 2) { obj_hide_all(); relic_view(); break; }
                 if (sel == 3) { settings_screen(); break; }
-                save_run(); gstate = ST_TITLE; return 1;        /* SAVE & QUIT */
+                save_run(); fx_out(); gstate = ST_TITLE; return 1;    /* SAVE & QUIT */
             }
         }
     }

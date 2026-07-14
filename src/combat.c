@@ -977,6 +977,7 @@ void combat_screen(int encounter)
         if (run.hp <= 0) {
             run.hp = 0;
             obj_hide_all();
+            fx_out();           /* combat death → gameover transition: fade combat out */
             gstate = ST_GAMEOVER;
             return;
         }
