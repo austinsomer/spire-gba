@@ -140,6 +140,10 @@ int main(void)
     rng_seed(7); run_new(); gstate = ST_MAP;   /* skip title for map peek */
 #elif defined(BATTLETEST)
     rng_seed(7); run_new(); map_pending_encounter = 1; gstate = ST_COMBAT;
+#elif defined(NEOWTEST)
+    rng_seed(7); run_new(); neow_screen(); gstate = ST_MAP;  /* neow peek */
+#elif defined(TITLETEST)
+    gstate = ST_TITLE;
 #else
     slides_play();              /* pre-intro splash slides (bios -> slides -> video) */
     intro_play();               /* cold-boot intro video, ends faded to black */
